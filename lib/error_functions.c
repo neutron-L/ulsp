@@ -182,3 +182,4 @@ cmdLineErr(const char *format, ...)
 
     fflush(stderr);           /* In case stderr is not line-buffered */
     exit(EXIT_FAILURE);
+}
