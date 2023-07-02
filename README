@@ -1,0 +1,1 @@
+This project is used to document the learning of Unix/Linux system programming. The main reference books include APUE and TLPI, which will include learning and exploring some system concepts in Unix/Linux (such as process communication, signals, file systems, etc.), as well as some commands I have tried to implement myself
