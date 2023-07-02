@@ -1,5 +1,5 @@
 /*
- * 为SIGINT信号设置处理函数，打印一条mesg
+ * 为SIGINT信号设置处理函数，打印一条mesg"Ouch"
  * */
 
 #include <signal.h>

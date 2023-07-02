@@ -1,5 +1,8 @@
 /*
  * 为SIGINT信号和SIGQUIT信号设置同一处理函数，且二者的处理逻辑不同
+ * 对于SIGINT信号，打印提示信息以及第几次接收到该号（counter）
+ * 对于SIGQUIT信号，打印提示信息并退出
+ * 可以使用t_kill.c发送信号给它，也可以通过中断输入发送信号(Ctrl-C to send SIGINT and Ctrl-\ to send SIGQUIT)
  * */
 
 #include <signal.h>
