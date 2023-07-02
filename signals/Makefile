@@ -4,7 +4,7 @@ CFLAGS = -O0 -I$(LIB) -Wall -Wextra -g
 
 .PHONY: all clean
 
-target = ouch intquit
+target = ouch intquit t_kill sigset
 
 
 all: ${target}
@@ -12,8 +12,8 @@ all: ${target}
 %: %.c $(LIB)/tlsp_hdr.h $(LIB)/get_num.so $(LIB)/error_functions.so 
 	$(CC) $(CFLAGS) -o $@ $^
 
-# copy: $(BIN)/copy.o $(BIN)/error.o
-# 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^
+sigset: sigset.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so 
+	$(CC) $(CFLAGS) -o $@ $^
 
 # append: $(BIN)/append.o $(BIN)/error.o
 # 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^
