@@ -1,3 +1,7 @@
+/*
+ * 为SIGINT信号设置处理函数，打印一条mesg
+ * */
+
 #include <signal.h>
 #include "tlsp_hdr.h"
 
