@@ -5,16 +5,13 @@ CFLAGS = -O0 -I$(LIB) -Wall -Wextra -g
 
 .PHONY: all clean
 
-target = ouch
+target = ouch intquit
 
 
 all: ${target}
 
-ouch: ouch.c $(LIB)/tlsp_hdr.h $(LIB)/get_num.so $(LIB)/error_functions.so 
+%: %.c $(LIB)/tlsp_hdr.h $(LIB)/get_num.so $(LIB)/error_functions.so 
 	$(CC) $(CFLAGS) -o $@ $^
-
-# hole: $(BIN)/hole.o $(BIN)/error.o
-# 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^
 
 # copy: $(BIN)/copy.o $(BIN)/error.o
 # 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^
