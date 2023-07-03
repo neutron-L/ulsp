@@ -16,6 +16,8 @@ int main()
     sigset_t sig1, sig2;
 
     // Empty sig1
+    // NOTE: 借由sigemptyset()初始化sigset_t类型的变量，
+    // 即使该变量可能是静态类型的，因为全部初始化为0表示空信号集的作法不具备可移植性
     sigemptyset(&sig1);
 
     printf("Sigset 1:\n");
