@@ -9,27 +9,38 @@
 #include "signal_functions.h"
 #include "tlsp_hdr.h"
 
+int flag = 1;
 
 static void
 sigHandler(int sig)
 {
     printf("Caught %d(%s)\n", sig, strsignal(sig));
     sleep(1);
-    raise(SIGUSR1);
-    sleep(1);
+    if (flag)
+    {
+        raise(SIGINT);
+        raise(SIGUSR2);
+        flag = 0;
+    }
+
     printPendingSigs(stdout, "");
     printf("exit\n");
 }
 
-int 
-main(int argc, char ** argv)
+int main(int argc, char **argv)
 {
     /* Establish handler for SIGUSR1 */
+    struct sigaction act;
+    act.sa_handler = sigHandler;
+    act.sa_flags = SA_NODEFER;
+    if (sigaction(SIGINT, &act, NULL) == SIG_ERR)
+        errExit("sigaction");
+    if (sigaction(SIGUSR1, &act, NULL) == SIG_ERR)
+        errExit("sigaction");
+    if (sigaction(SIGUSR2, &act, NULL) == SIG_ERR)
+        errExit("sigaction");
 
-    if (signal(SIGUSR1, sigHandler) == SIG_ERR)
-        errExit("signal");
-    
     raise(SIGUSR1);
-    
+
     exit(EXIT_SUCCESS);
 }
