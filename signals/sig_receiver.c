@@ -1,5 +1,7 @@
 /*
- * 
+ * 这个程序和sig_sender.c是配套的，两个程序可以同时运行，以探究信号pending的现象
+ * 原理：发送程序会在每次获得调度而运行时发送多个信号给接收者，然而，当接收进程运
+ * 行时，传递来的信号只有一个，只会把他们中的一个标记为等待状态。
  * */
 
 #define _GNU_SOURCE
@@ -26,8 +28,10 @@ main(int argc, char ** argv)
     printf("%s: PID is %ld\n", argv[0], (long)getpid());
 
     // Same handler for all signals Ignore errors
+    struct sigaction act;
+    act.sa_handler = handler;
     for (int i = 1; i < NSIG; ++i)
-        (void)signal(i, handler);
+        (void)sigaction(i, &act, NULL);
 
     /* If a sleep time was specified, temporarily block all signals, 
         sleep (while another process sends us signals), and then
