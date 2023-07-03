@@ -4,7 +4,7 @@ CFLAGS = -O0 -I$(LIB) -Wall -Wextra -g
 
 .PHONY: all clean
 
-target = ouch intquit t_kill sigset
+target = ouch intquit t_kill sigset sig_sender raise_sig ignore_kill_stop
 
 
 all: ${target}
@@ -15,14 +15,12 @@ all: ${target}
 sigset: sigset.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so 
 	$(CC) $(CFLAGS) -o $@ $^
 
-# append: $(BIN)/append.o $(BIN)/error.o
-# 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^
+sig_sender: sig_sender.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so  $(LIB)/error_functions.so $(LIB)/get_num.so 
+	$(CC) $(CFLAGS) -o $@ $^
 
-# fork-then-open: $(BIN)/fork-then-open.o $(BIN)/error.o
-# 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^
 
-# open-then-fork: $(BIN)/open-then-fork.o $(BIN)/error.o
-# 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^
+raise_sig: raise_sig.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so  $(LIB)/error_functions.so $(LIB)/get_num.so 
+	$(CC) $(CFLAGS) -o $@ $^
 
 
 # append-seek: $(BIN)/append-seek.o $(BIN)/error.o
@@ -98,4 +96,4 @@ sigset: sigset.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so
 # 	$(CC) $(CFLAGS) -o $(BIN)/$@ $^
 
 clean:
-	rm ${target}
+	-rm ${target}
