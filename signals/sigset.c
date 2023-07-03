@@ -25,6 +25,7 @@ int main()
     // Fill sig2
     printf("Sigset 2:\n");
     sigfillset(&sig2);
+    // 通过打印出来的信息显示，1-31是传统或标准的信号，往后是实时信号
     printSigset(stdout, "", &sig2);
 
     sigemptyset(&sig2);
