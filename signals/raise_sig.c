@@ -6,6 +6,7 @@
  * NOTE: 具体的进程调度对信号的处理有什么影响目前还不清楚
  * */
 #include <signal.h>
+#include "signal_functions.h"
 #include "tlsp_hdr.h"
 
 
@@ -16,6 +17,7 @@ sigHandler(int sig)
     sleep(1);
     raise(SIGUSR1);
     sleep(1);
+    printPendingSigs(stdout, "");
     printf("exit\n");
 }
 
