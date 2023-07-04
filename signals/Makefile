@@ -4,7 +4,7 @@ CFLAGS = -O0 -I$(LIB) -Wall -Wextra -g
 
 .PHONY: all clean
 
-target = ouch intquit t_kill sigset sig_sender sig_receiver raise_sig ignore_kill_stop ignore_sig
+target = ouch intquit t_kill sigset sig_sender sig_receiver raise_sig ignore_kill_stop
 
 
 all: ${target}
@@ -28,6 +28,9 @@ ignore_sig: ignore_sig.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so  $(LIB)/er
 
 
 raise_sig: raise_sig.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so  $(LIB)/error_functions.so $(LIB)/get_num.so 
+	$(CC) $(CFLAGS) -o $@ $^
+
+sig_resethand: sig_resethand.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so  $(LIB)/error_functions.so $(LIB)/get_num.so 
 	$(CC) $(CFLAGS) -o $@ $^
 
 
