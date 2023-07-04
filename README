@@ -1,1 +1,11 @@
+## Introduction
 This project is used to document the learning of Unix/Linux system programming. The main reference books include APUE and TLPI, which will include learning and exploring some system concepts in Unix/Linux (such as process communication, signals, file systems, etc.), as well as some commands I have tried to implement myself
+
+## Contents
+- lib: Include some util source files and header files, they will be compiled to shared librarys(.so)
+- cmd: This includes practicing and implementing Linux commands such as ls, pwd, and more, mainly focusing on the exercises in each chapter of the "Unix/Linux Programming Practice Tutorial"
+- Makefile: Used to compile and implement a universal shared library. The shared library and its corresponding source files are located in the lib directory
+- README: documentation
+- other dirs: Each other directory includes a series of exercise source code programs related to related topics, such as signals (including Linux signal related source programs), etc
+## Tips
+Each individual file should be described in the comments at the beginning of the file, along with its intended effects, for future reference
