@@ -1,3 +1,7 @@
+/* 
+ * 《TLPI》程序清单21-3，探究sigaltstack的使用
+ * */
+
 #define _GNU_SOURCE
 
 #include <string.h>
