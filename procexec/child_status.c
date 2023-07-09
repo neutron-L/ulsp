@@ -1,3 +1,7 @@
+/*
+ * 《TLPI》程序清单26-3：使用waitpid()获取子进程状态
+*/
+
 #include <sys/wait.h>
 #include "print_wait_status.h"
 #include "tlsp_hdr.h"
