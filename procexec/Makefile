@@ -12,5 +12,8 @@ all: ${target}
 %: %.c $(LIB)/tlsp_hdr.h $(LIB)/error_functions.so $(LIB)/get_num.so 
 	$(CC) $^ $(CFLAGS) -o $@ 
 
+fork_signal: fork_signal.c $(LIB)/tlsp_hdr.h $(LIB)/signal_functions.so  $(LIB)/error_functions.so $(LIB)/get_num.so 
+	$(CC) $^ $(CFLAGS) -o $@ 
+
 clean:
 	-rm ${target}
