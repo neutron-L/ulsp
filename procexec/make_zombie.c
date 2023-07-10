@@ -4,6 +4,14 @@
 
 #define CMD_SIZE 200
 
+static volatile sig_atomic_t childExit = 0;
+
+static void
+handler(int sig)
+{
+    childExit = 1;
+}
+
 int 
 main(int argc, char **argv)
 {
@@ -13,6 +21,23 @@ main(int argc, char **argv)
     setbuf(stdout, NULL);
     printf("Parent PID=%ld\n", (long)getpid());
 
+    // wait child exit, as wait SIGCHLD
+
+    // block SIGCHLD
+    sigset_t blockMask, origMask, emptyMask;
+    sigemptyset(&blockMask);
+    sigaddset(&blockMask, SIGCHLD);
+    if (sigprocmask(SIG_SETMASK, &blockMask, &origMask) == -1)
+        errExit("sigprocmask - SIG_SETMASK");
+
+    // sigaction SIGCHLD handler
+    struct sigaction sa;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sa.sa_handler = handler;
+    if (sigaction(SIGCHLD, &sa, NULL) == -1)
+        errExit("sigprocmask");
+
     switch (childPid = fork())
     {
     case -1:
@@ -21,7 +46,15 @@ main(int argc, char **argv)
         printf("Child (PID=%ld) exiting\n", (long)getpid());
         _exit(EXIT_SUCCESS);
     default:
-        sleep(3); // Give child a chance to start and exit
+        // sleep(3); // Give child a chance to start and exit
+
+        sigemptyset(&emptyMask);
+        while (!childExit)
+            sigsuspend(&emptyMask);
+        printf("Parent continue running...\n");
+        if (sigprocmask(SIG_SETMASK, &origMask, NULL) == -1)
+            errExit("sigprocmask");
+
         snprintf(cmd, CMD_SIZE, "ps | grep %s", basename(argv[0]));
         cmd[CMD_SIZE - 1] = '\0';
 
