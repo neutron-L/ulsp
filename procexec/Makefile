@@ -24,6 +24,11 @@ child_status: child_status.c $(LIB)/tlsp_hdr.h $(LIB)/error_functions.so $(LIB)/
 multi_SIGCHLD: multi_SIGCHLD.c $(LIB)/tlsp_hdr.h $(LIB)/error_functions.so $(LIB)/get_num.so $(LIB)/curr_time.so $(LIB)/print_wait_status.so 
 	$(CC) $^ $(CFLAGS) -o $@ 
 
+t_system: t_system.c $(LIB)/tlsp_hdr.h $(LIB)/error_functions.so $(LIB)/get_num.so $(LIB)/print_wait_status.so 
+	$(CC) $^ $(CFLAGS) -o $@ 
+
+simple_system: simple_system.c $(LIB)/tlsp_hdr.h $(LIB)/error_functions.so $(LIB)/get_num.so $(LIB)/print_wait_status.so 
+	$(CC) $^ $(CFLAGS) -o $@ 
 
 clean:
 	-rm ${target}
