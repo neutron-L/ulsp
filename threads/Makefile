@@ -1,6 +1,6 @@
 CC = gcc
 LIB = ../lib
-CFLAGS = -O0 -I$(LIB) -Wall -Wextra -g
+CFLAGS = -O0 -I$(LIB) -Wall -Wextra -g 
 
 .PHONY: all clean
 

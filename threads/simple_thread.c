@@ -1,3 +1,7 @@
+/*
+ * 程序清单29-1：一个使用pthreads的简单程序
+ * */
+
 #include <pthread.h>
 #include "tlsp_hdr.h"
 
