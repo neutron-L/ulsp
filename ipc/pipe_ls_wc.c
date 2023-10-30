@@ -18,25 +18,35 @@ int main(int argc, char *argv[])
     case 0:
         if (close(pfd[0]))
             errExit("close");
-        if (close(STDOUT_FILENO))
-            errExit("close");
-        dup2(pfd[1], STDOUT_FILENO);
+        if (pfd[1] != STDOUT_FILENO)
+        {
+            if (dup2(pfd[1], STDOUT_FILENO) == -1)
+                errExit("dup2");
+            if (close(pfd[1]))
+                errExit("close");
+        }
+
         execlp("ls", "ls", NULL);
         errExit("exec");
     default:
         break;
     }
 
-    if (close(pfd[1]))
-        errExit("close");
     switch (fork())
     {
     case -1:
         errExit("fork");
     case 0:
-        if (close(STDIN_FILENO))
+        if (close(pfd[1]))
             errExit("close");
-        dup2(pfd[0], STDIN_FILENO);
+        if (pfd[0] != STDIN_FILENO)
+        {
+            if (dup2(pfd[0], STDIN_FILENO) == -1)
+                errExit("dup2");
+            if (close(pfd[0]))
+                errExit("close");
+        }
+
         execlp("wc", "wc", NULL);
         errExit("exec");
     default:
@@ -44,5 +54,11 @@ int main(int argc, char *argv[])
     }
     if (close(pfd[0]))
         errExit("close");
+    if (close(pfd[1]))
+        errExit("close");
+    if (wait(NULL) == -1)
+        errExit("wait");
+    if (wait(NULL) == -1)
+        errExit("wait");
     exit(EXIT_SUCCESS);
 }
