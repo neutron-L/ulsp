@@ -1,3 +1,7 @@
+/*
+ * 习题50-1：验证RLIMT_MEMLOCK资源限制的作用
+ * */
+
 #include <stdio.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
