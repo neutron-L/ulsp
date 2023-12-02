@@ -120,7 +120,7 @@ void check_clients(pool *p)
         {
             memset(pc->data, 0, (char *)pc->buf + BUFSIZ - pc->data);
             n = recv(pc->connfd, pc->data, BUFSIZ - 1, 0);
-            printf("%d bytes\n", n);
+            // printf("%d bytes\n", n);
             assert(n >= 0);
             if (n == 0)
             {

@@ -112,18 +112,21 @@ int main(int argc, char **argv)
             // 可读事件
             if (FD_ISSET(STDIN_FILENO, &ready_read_fds))
             {
-                // memset(send_buf, 0, sizeof(send_buf));
-                // scanf("%[^\n]", send_buf);
-                // // if (strlen(send_buf) > 1)
-                // FD_SET(connfd, &write_fds);
-                ret = splice(STDIN_FILENO, NULL, pipefd[1], NULL, BUFSIZ, 0);
-                ret = splice(pipefd[0], NULL, connfd, NULL, BUFSIZ, 0);
+                // printf("kedu");
+                memset(send_buf, 0, sizeof(send_buf));
+                scanf("%[^\n]", send_buf);
+                assert(getchar() == '\n');
+                FD_SET(connfd, &write_fds);
+                // ret = splice(STDIN_FILENO, NULL, pipefd[1], NULL, BUFSIZ, 0);
+                // ret = splice(pipefd[0], NULL, connfd, NULL, BUFSIZ, 0);
             }
+            else
+                FD_CLR(connfd, &write_fds);
             if (FD_ISSET(connfd, &ready_read_fds))
             {
                 if (read(connfd, recv_buf, BUFSIZ) == 0)
                     break;
-                printf("%s", recv_buf);
+                printf("%s\n", recv_buf);
             }
         }
     }
