@@ -16,8 +16,8 @@
 #define BUFSIZE 512
 #define SERVER_PORT 8080
 
-char send_buf[BUFSIZ];
-char recv_buf[BUFSIZ];
+char send_buf[BUFSIZE];
+char recv_buf[BUFSIZE];
 
 char *name;
 int connfd;
@@ -119,9 +119,10 @@ int main(int argc, char **argv)
                 FD_CLR(connfd, &write_fds);
             if (FD_ISSET(connfd, &ready_read_fds))
             {
-                if (read(connfd, recv_buf, BUFSIZ) == 0)
+                bzero(recv_buf, BUFSIZE);
+                if ((ret = read(connfd, recv_buf, BUFSIZE)) == 0)
                     break;
-                printf("%s\n", recv_buf);
+                printf("%d %s\n", ret, recv_buf);
             }
         }
     }
