@@ -110,7 +110,8 @@ void check_clients(pool *p)
         --p->nready;
         if (Write)
         {
-            write(pc->connfd, pc->write_buf, BUFSIZ);
+            // printf("Write\n");
+            write(pc->connfd, pc->write_buf, strlen(pc->write_buf));
             pc->write_buf = NULL;
             FD_CLR(pc->connfd, &p->write_fds);
             FD_SET(pc->connfd, &p->read_fds);
@@ -137,7 +138,12 @@ void check_clients(pool *p)
                 // 第一次收到用户的姓名
                 if (pc->welcome)
                 {
-                    memcpy(pc->name, pc->buf, n);
+                    if (pc->buf[strlen(pc->buf) - 1] == '\n')
+                    {
+                        pc->buf[strlen(pc->buf) - 1] = '\0';
+                        --n;
+                    }
+                    strncpy(pc->name, pc->buf, n);
                     printf("Welcome %s!\n", pc->buf);
                     pc->welcome = false;
                     pc->buf[n] = ':';
