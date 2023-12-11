@@ -56,5 +56,9 @@ main(int argc, char * argv[])
     addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (addr == MAP_FAILED)
         errExit("mmap");
+    write(STDOUT_FILENO, addr, 5);
+    memcpy(addr, "world", 5);
+    write(STDOUT_FILENO, addr, 5);
+    
     exit(EXIT_SUCCESS);
 }
