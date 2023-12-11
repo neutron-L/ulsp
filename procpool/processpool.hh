@@ -16,6 +16,17 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+class Process
+{
+private:
+    pid_t pid{-1};
+    int pipefd[2]{-1,-1};
+
+public:
+    Process()=default;
+    Process(pid_t p) : pid(p)
+    {} 
+};
 
 
 #endif
