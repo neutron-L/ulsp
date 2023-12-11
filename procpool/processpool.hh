@@ -74,21 +74,21 @@ public:
 
         return instance;
     }
-
     ~ProcessPool()
     {
-        delete [] sub_process;
+        delete[] sub_process;
     }
+
+    void run();
 };
 
 template <typename T>
 ProcessPool<T>::ProcessPool(int lsfd, int proc_num)
-: listenfd(lsfd), process_number(proc_num)
+    : listenfd(lsfd), process_number(proc_num)
 {
-
 }
 
-
+/// @brief 统一事件源
 template <typename T>
 void ProcessPool<T>::setup_sig_pipe()
 {
@@ -111,12 +111,20 @@ void ProcessPool<T>::setup_sig_pipe()
 }
 
 /* Static-function definition */
+
+/// @brief 设置文件描述符为非阻塞
+/// @param fd 待设置的文件描述符
+/// @return 旧的打开文件标志
 static int setnonblocking(int fd)
 {
     int option = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, option | O_NONBLOCK);
     return option;
 }
+
+/// @brief 添加监听描述符
+/// @param epollfd epoll的描述符
+/// @param fd 待添加的描述符
 static void addfd(int epollfd, int fd)
 {
     struct epoll_event event;
@@ -126,12 +134,17 @@ static void addfd(int epollfd, int fd)
     setnonblocking(fd);
 }
 
+/// @brief 取消对一个描述符的监听
+/// @param epollfd epoll描述符
+/// @param fd 待取消监听的描述符
 static void removefd(int epollfd, int fd)
 {
     epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
     close(fd);
 }
 
+/// @brief 信号处理函数
+/// @param sig 触发的信号
 static void sig_handler(int sig)
 {
     int olderr = errno;
@@ -139,6 +152,10 @@ static void sig_handler(int sig)
     errno = olderr;
 }
 
+/// @brief 设置信号的处理函数
+/// @param sig 信号
+/// @param handler 信号处理函数
+/// @param restart 对于被信号中断的系统调用是否重启
 static void addsig(int sig, void (*handler)(int), bool restart = true)
 {
     struct sigaction sa;
@@ -150,7 +167,5 @@ static void addsig(int sig, void (*handler)(int), bool restart = true)
     sigfillset(&sa.sa_mask);
     assert(sigaction(sig, &sa, NULL) != -1);
 }
-
-
 
 #endif
