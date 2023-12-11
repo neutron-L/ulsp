@@ -16,17 +16,108 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+static int setnonblocking(int fd);
+static void addfd(int epollfd, int fd);
+static void removefd(int epollfd, int fd);
+static void sig_handler(int sig);
+static void addsig(int sig, void (*handler)(int), bool restart = true);
+
+static int sig_pipefd[2];
+
+/// @brief 子进程包装类
 class Process
 {
 private:
-    pid_t pid{-1};
-    int pipefd[2]{-1,-1};
+    pid_t pid{-1};         // 进程id
+    int pipefd[2]{-1, -1}; // 与父进程通信的管道
 
 public:
-    Process()=default;
+    Process() = default;
     Process(pid_t p) : pid(p)
-    {} 
+    {
+    }
 };
 
+/// @brief 进程池类模板，T必须提供一些处理接口以供事件发生时进程调用
+template <typename T>
+class ProcessPool
+{
+private:
+    static const int max_process_number = 16;
+    static const int user_per_process =
+        static const int max_event_number = 10000;
+    static ProcessPool<T> *instance{nullptr};
 
+    int process_number;
+    int idx;
+    int epollfd;
+    int listenfd;
+
+    int stop;
+
+    Process *sub_process;
+
+    // 构造函数为私有，以支持单例模式
+    ProcessPool(int listenfd, int process_number = 8);
+
+    void setup_sig_pipe();
+    void run_child();
+    void run_parent();
+
+public:
+    static ProcessPool<T> *create(int listenfd, int process_number = 8)
+    {
+        if (!instance)
+        {
+            instance = new ProcessPool<T>(listenfd, process_number);
+        }
+
+        return instance;
+    }
+
+    ~ProcessPool()
+    {
+    }
+};
+
+/* Static-function definition */
+static int setnonblocking(int fd)
+{
+    int option = fcntl(fd, F_GETFL);
+    fcntl(fd, F_SETFL, option | O_NONBLOCK);
+    return option;
+}
+static void addfd(int epollfd, int fd)
+{
+    struct epoll_event event;
+    event.data.fd = fd;
+    event.events = EPOLLIN | EPOLLET;
+    epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
+    setnonblocking(fd);
+}
+
+static void removefd(int epollfd, int fd)
+{
+    epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL);
+    close(fd);
+}
+
+static void sig_handler(int sig)
+{
+    int olderr = errno;
+    send(sig_pipefd[1], (const void *)&sig, sizeof(sig), 0);
+    errno = olderr;
+}
+
+static void addsig(int sig, void (*handler)(int), bool restart = true)
+{
+    struct sigaction sa;
+    bzero((void *)&sa, sizeof(sa));
+    sa.sa_handler = handler;
+    if (restart)
+        sa.sa_flags |= SA_RESTART;
+
+    sigfillset(&sa.sa_mask);
+    assert(sigaction(sig, &sa, NULL) != -1);
+}
 #endif
