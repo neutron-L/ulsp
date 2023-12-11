@@ -15,21 +15,13 @@ int main()
 
     if (setvbuf(stdin, buf, _IOLBF, BUFSIZ))
         errExit("setvbuf");
-    scanf("%s", in);
-    printf("in %s;\nbuf: %s\n", in, buf);
-    scanf("%s", in);
-    printf("in %s;\nbuf: %s\n", in, buf);
-    fflush(NULL);
-    printf("after flush, buf: %s\n", buf);
-    scanf("%s", in);
-    printf("in %s;\nbuf: %s\n", in, buf);
-    scanf("%s", in);
-    printf("in %s;\nbuf: %s\n", in, buf);
-    scanf("%s", in);
-    printf("in %s;\nbuf: %s\n", in, buf);
-
-    scanf("%s", in);
-    printf("in %s;\nbuf: %s\n", in, buf);
+    read(STDIN_FILENO, buf, 2);
+    write(STDOUT_FILENO, buf, 2);
+    write(STDOUT_FILENO, "\n", 1);
+    fflush(stdin);
+    read(STDIN_FILENO, buf, 2);
+    write(STDOUT_FILENO, buf, 2);
+    write(STDOUT_FILENO, "\n", 1);
 
     exit(EXIT_SUCCESS);
 }

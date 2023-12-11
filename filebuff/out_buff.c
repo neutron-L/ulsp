@@ -4,20 +4,24 @@
 #include <assert.h>
 #include "tlsp_hdr.h"
 
-int
-main()
+int main()
 {
     char buf[BUFSIZ];
 
     if (setvbuf(stdout, buf, _IOLBF, BUFSIZ))
         errExit("setvbuf");
-    if (setvbuf(stdin, buf, _IOLBF, BUFSIZ))
-        errExit("setvbuf");
-    
-        printf("Hello world");
-    assert(strcmp(buf, "Hello world") == 0);
-    fflush(stdout);
-    assert(strcmp(buf, "Hello world") == 0);
+    fprintf(stderr, "output without \\n: \n");
+    printf("Hello world");
 
+    fflush(stdout);
+    sleep(3);
+    fprintf(stderr, "buf: %s\n", buf);
+    fprintf(stderr, "output line with \\n: \n");
+    printf(" and new\n");
+    fprintf(stderr, "buf: %s\n", buf);
+    printf("new start\n");
+    fprintf(stderr, "buf: %s\n", buf);
+    fprintf(stderr, "flush buf: %s\n", buf);
+    fflush(stdout);
     exit(EXIT_SUCCESS);
 }
