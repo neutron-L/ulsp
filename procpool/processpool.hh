@@ -48,17 +48,17 @@ private:
         static const int max_event_number = 10000;
     static ProcessPool<T> *instance{nullptr};
 
-    int process_number;
-    int idx;
-    int epollfd;
     int listenfd;
+    int process_number;
+    int idx{-1};
+    int epollfd;
 
-    int stop;
+    bool stop{false};
 
     Process *sub_process;
 
     // 构造函数为私有，以支持单例模式
-    ProcessPool(int listenfd, int process_number = 8);
+    ProcessPool(int lsfd, int proc_num = 8);
 
     void setup_sig_pipe();
     void run_child();
@@ -77,8 +77,38 @@ public:
 
     ~ProcessPool()
     {
+        delete [] sub_process;
     }
 };
+
+template <typename T>
+ProcessPool<T>::ProcessPool(int lsfd, int proc_num)
+: listenfd(lsfd), process_number(proc_num)
+{
+
+}
+
+
+template <typename T>
+void ProcessPool<T>::setup_sig_pipe()
+{
+    epollfd = epoll_create(5);
+
+    assert(epollfd != -1);
+
+    // 创建sig pipe用于读取触发的信号
+    int ret = socketpair(PF_UNIX, SOCK_STREAM, 0, sig_pipefd);
+    assert(ret != -1);
+
+    setnonblocking(sig_pipefd[1]);
+    addfd(epollfd, sig_pipefd[0]);
+
+    // 统一信号源
+    addsig(SIGCHID, sig_handler);
+    addsig(SIGTERM, sig_handler);
+    addsig(SIGINT, sig_handler);
+    addsig(SIGPIPE, sig_handler);
+}
 
 /* Static-function definition */
 static int setnonblocking(int fd)
@@ -120,4 +150,7 @@ static void addsig(int sig, void (*handler)(int), bool restart = true)
     sigfillset(&sa.sa_mask);
     assert(sigaction(sig, &sa, NULL) != -1);
 }
+
+
+
 #endif
