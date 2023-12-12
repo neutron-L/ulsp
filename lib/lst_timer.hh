@@ -26,10 +26,13 @@ private:
     util_timer *prev{}, *next{};
     time_t expire{};
 
-    void (*cb_func)(client_data *);
+    void (*cb_func)(client_data *){nullptr};
 
 public:
-    util_timer() : prev(nullptr), next(nullptr);
+    util_timer()=default;
+    util_timer(client_data * data, time_t exp, void (*handler)(client_data *))
+    : user_data(data), expire(exp), cb_func(handler)
+    {}
 };
 
 class sort_timer_lst
