@@ -12,6 +12,7 @@
 #include <signal.h>
 
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -43,9 +44,9 @@ class ProcessPool
 {
 private:
     static const int max_process_number = 16;
-    static const int user_per_process =
-        static const int max_event_number = 10000;
-    static ProcessPool<T> *instance{nullptr};
+    static const int user_per_process = 65536;
+    static const int max_event_number = 10000;
+    static ProcessPool<T> *instance;
 
     int listenfd;
     int process_number;
@@ -80,6 +81,9 @@ public:
 
     void run();
 };
+
+template <typename T>
+ProcessPool<T> * ProcessPool<T>::instance = nullptr;
 
 template <typename T>
 ProcessPool<T>::ProcessPool(int lsfd, int proc_num)
@@ -157,6 +161,7 @@ void ProcessPool<T>::run_child()
     int number = 0;
     int ret;
 
+    printf("Child %d wait...\n", idx);
     while (!stop)
     {
         number = epoll_wait(epollfd, events, max_event_number, -1);
@@ -180,7 +185,7 @@ void ProcessPool<T>::run_child()
                     continue;
                 struct sockaddr_in client;
                 socklen_t addrlen = sizeof(client);
-                int connfd = accept(listenfd, &client, &addrlen);
+                int connfd = accept(listenfd, (struct sockaddr *)&client, &addrlen);
                 if (connfd < 0)
                 {
                     perror("accept");
@@ -198,7 +203,7 @@ void ProcessPool<T>::run_child()
                 ret /= sizeof(int);
                 for (int j = 0; j < ret; ++j)
                 {
-                    switch (expression)
+                    switch (signals[j])
                     {
                     case SIGCHLD:
                         pid_t pid;
@@ -215,13 +220,16 @@ void ProcessPool<T>::run_child()
                 }
             }
             else if (events[i].events & EPOLLIN)
-                user[events[i].data.fd].process();
+            {
+                printf("Child %d process...\n", idx);
+                users[events[i].data.fd].process();
+            }
             else
                 continue;
         }
     }
 
-    delete [] users;
+    delete[] users;
     users = nullptr;
     close(epollfd);
 }
@@ -235,14 +243,15 @@ void ProcessPool<T>::run_parent()
     int pipefd = sub_process[idx].pipefd[0];
 
     addfd(epollfd, listenfd);
-
     epoll_event events[max_event_number];
     int signals[1024];
 
-    assert(users);
+    int new_conn = 1; // 仅用于向子进程传输内容以提示其accept listenfd
     int number = 0;
     int ret;
+    int counter = 0;
 
+    printf("Parent wait...\n");
     while (!stop)
     {
         number = epoll_wait(epollfd, events, max_event_number, -1);
@@ -260,7 +269,25 @@ void ProcessPool<T>::run_parent()
             // 来自父进程的管道
             if (sockfd == listenfd)
             {
-                
+                int j = counter;
+                do
+                {
+                    if (sub_process[j].pid != -1)
+                        break;
+                    j = (j + 1) % process_number;
+                    /* code */
+                } while (j != counter);
+
+                if (sub_process[j].pid == -1)
+                {
+                    printf("None running child process\n");
+                    stop = true;
+                    break;
+                }
+
+                counter = (counter + 1) % process_number;
+                send(sub_process[j].pipefd[1], &new_conn, sizeof(new_conn), 0);
+                printf("send request to child %d\n", j);
             }
             // 处理信号
             else if (sockfd == sig_pipefd[0])
@@ -271,13 +298,46 @@ void ProcessPool<T>::run_parent()
                 ret /= sizeof(int);
                 for (int j = 0; j < ret; ++j)
                 {
-                    switch (expression)
+                    switch (signals[j])
                     {
                     case SIGCHLD:
-                        
+                    {
+                        pid_t pid;
+                        int stat;
+                        while ((pid = waitpid(-1, &stat, WNOHANG)) > 0)
+                        {
+                            for (int k = 0; k < process_number; ++k)
+                            {
+                                if (sub_process[k].pid == pid)
+                                {
+                                    printf("child %d exit\n", k);
+                                    close(sub_process[k].pipefd[1]);
+                                    sub_process[k].pid = -1;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // 检查是否所有子进程已经退出
+                        stop = true;
+                        for (int k = 0; k < process_number; ++k)
+                        {
+                            if (sub_process[k].pid != -1)
+                            {
+                                stop = false;
+                                break;
+                            }
+                        }
+                    }
+                    break;
                     case SIGTERM:
                     case SIGINT:
-                        stop = true;
+                        // 杀死所有子进程
+                        for (int k = 0; k < process_number; ++k)
+                        {
+                            if (sub_process[k].pid != -1)
+                                kill(sub_process[k].pid, signals[j]);
+                        }
                     default:
                         break;
                     }
@@ -289,6 +349,7 @@ void ProcessPool<T>::run_parent()
     }
 
     close(epollfd);
+    printf("Parent exit\n");
 }
 
 /* Static-function definition */
@@ -337,7 +398,7 @@ static void sig_handler(int sig)
 /// @param sig 信号
 /// @param handler 信号处理函数
 /// @param restart 对于被信号中断的系统调用是否重启
-static void addsig(int sig, void (*handler)(int), bool restart = true)
+static void addsig(int sig, void (*handler)(int), bool restart)
 {
     struct sigaction sa;
     bzero((void *)&sa, sizeof(sa));
