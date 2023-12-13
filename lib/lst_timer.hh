@@ -6,61 +6,87 @@
 
 #define BUFFER_SIZE 64
 
-template<typename T>
-class base_timer
-{
-protected:
-    time_t expire{};
-public:
-    base_timer()=default;
-    base_timer(time_t exp) : expire(exp)
-    {}
-    void setExpire(time_t expire)
-    {
-        this->expire = expire;
-    }
-};
-
+// 前置声明定时器基类
+template <typename T>
+class base_timer;
 
 /// @brief 用户数据结构体
 /// @tparam T 一般是一个继承自Conn的任务类
-template<typename T>
+template <typename T>
 struct client_data
 {
-    T data;                // 具体的用户数据
-    base_timer<T> *timer;  // 计时器指针
+    T data;               // 具体的用户数据
+    base_timer<T> *timer; // 计时器指针
 };
 
+/* *
+ * 定义定时器的基类和定时器容器基类
+ * 所有定时器子类都需要继承自定时器基类
+ * 所有定时器容器类都需要继承自定时器容器基类
+ * */
+
+/// @brief 定时器基类，所有定时器容器的定时器都要继承自该类
+/// @tparam T 一般是一个继承自Conn的任务类
+template <typename T>
+class base_timer
+{
+protected:
+    client_data<T> *user_data{};
+    time_t expire{}; // 定时器期限（过期时间）
+public:
+    base_timer() = default;
+    base_timer(client_data<T> *data, time_t exp)
+        : user_data(data), expire(exp)
+    {
+    }
+    virtual void setExpire(time_t expire)
+    {
+        this->expire = expire;
+    }
+
+    virtual ~base_timer()
+    {
+    }
+};
+
+/// @brief 定时器容器基类，所有定时器容器都要继承自该类
+/// @tparam T 一般是一个继承自Conn的任务类
+template <typename T>
+class timer_container
+{
+public:
+    virtual base_timer<T> *add_timer(base_timer<T> *) = 0;
+    virtual void del_timer(base_timer<T> *) = 0;
+    virtual void adjust_timer(base_timer<T> *) = 0;
+    virtual void tick() = 0;
+};
+
+/* 定义基于升序链表的定时器容器 */
+
 // 前置声明sort timer lst
-template<typename T>
+template <typename T>
 class sort_timer_lst;
 
 /// @brief 用于排序链表的计时器类
-/// @tparam T 
-template<typename T>
+/// @tparam T
+template <typename T>
 class util_timer : public base_timer<T>
 {
     friend class sort_timer_lst<T>;
 
 private:
-    client_data<T> *user_data{};
     util_timer *prev{}, *next{};
 
-
 public:
-    util_timer()=default;
-    util_timer(client_data<T> * data, time_t exp)
-    : base_timer<T>(exp), user_data(data)
-    {}
-    // void setExpire(time_t expire)
-    // {
-    //     this->expire = expire;
-    // }
+    util_timer() = default;
+    util_timer
+        : base_timer<T>(data, exp)
+    {
+    }
 };
 
-
-template<typename T>
-class sort_timer_lst
+template <typename T>
+class sort_timer_lst : public timer_container<T>
 {
 private:
     util_timer<T> *head{}, *tail{};
@@ -98,7 +124,7 @@ public:
         }
     }
 
-    void add_timer(util_timer<T> *timer)
+    void add_timer(base_timer<T> *timer) override
     {
         if (!head)
         {
@@ -114,7 +140,7 @@ public:
             add_timer(timer, head);
     }
 
-    void adjust_timer(util_timer<T> *timer)
+    void adjust_timer(base_timer<T> *timer) override
     {
         if (!timer)
             return;
@@ -124,7 +150,7 @@ public:
         del_timer(timer);
         add_timer(timer);
     }
-    void del_timer(util_timer<T> *timer)
+    void del_timer(util_timer<T> *timer) override
     {
         if (!timer)
             return;
@@ -139,7 +165,7 @@ public:
                 tail = nullptr;
         }
     }
-    void tick()
+    void tick() override
     {
         time_t cur = time(NULL);
         while (head && head->expire <= cur)
