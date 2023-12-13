@@ -46,7 +46,7 @@ public:
         address = addr;
     }
 
-    virtual bool process() const
+    virtual bool process() 
     {
         return true;
     }
@@ -85,7 +85,7 @@ private:
     int epollfd;
 
     bool stop{false};
-    sort_timer_lst<T> timer_lst{};
+    timer_wheel<T> timer_lst{};
     Process *sub_process;
 
     // 构造函数为私有，以支持单例模式
@@ -172,7 +172,7 @@ template <typename T>
 void ProcessPool<T>::timer_handler()
 {
     timer_lst.tick();
-    alarm(timeslot);
+    alarm(timer_lst.getTimeSlot());
 }
 
 template <typename T>
@@ -206,7 +206,8 @@ void ProcessPool<T>::run_child()
     int ret;
     bool timeout = false;
 
-    alarm(timeslot);
+    alarm(timer_lst.getTimeSlot());
+
     printf("Child %d wait...\n", idx);
     while (!stop)
     {

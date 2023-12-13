@@ -59,10 +59,13 @@ template <typename T>
 class timer_container
 {
 public:
-    virtual base_timer<T> *add_timer(base_timer<T> *) = 0;
+    virtual void add_timer(base_timer<T> *) = 0;
     virtual void del_timer(base_timer<T> *) = 0;
     virtual void adjust_timer(base_timer<T> *) = 0;
     virtual void tick() = 0;
+
+    // 定时器类建议使用者调用alarm函数时设置的值
+    virtual int getTimeSlot() const=0;
 };
 
 /* 定义基于升序链表的定时器容器 */
@@ -128,8 +131,10 @@ public:
         }
     }
 
-    void add_timer(base_timer<T> *timer) override
+    void add_timer(base_timer<T> *bt) override
     {
+        util_timer<T> * timer = dynamic_cast<util_timer<T> *>(bt);
+
         if (!head)
         {
             head = tail = timer;
@@ -144,8 +149,10 @@ public:
             add_timer(timer, head);
     }
 
-    void adjust_timer(base_timer<T> *timer) override
+    void adjust_timer(base_timer<T> *bt) override
     {
+        util_timer<T> * timer = dynamic_cast<util_timer<T> *>(bt);
+
         if (!timer)
             return;
         // 链表仍然是有序的
@@ -154,8 +161,10 @@ public:
         del_timer(timer);
         add_timer(timer);
     }
-    void del_timer(util_timer<T> *timer) override
+    void del_timer(base_timer<T> *bt) override
     {
+        util_timer<T> * timer = dynamic_cast<util_timer<T> *>(bt);
+
         if (!timer)
             return;
         if (timer != head)
@@ -183,6 +192,14 @@ public:
         if (head)
             head->prev = nullptr;
     }
+
+    int getTimeSlot() const override
+    {
+        if (head)
+            return head->expire - time(NULL);
+        return 5;
+    }
+
 };
 
 /* 定义时间轮 */
@@ -218,10 +235,8 @@ class timer_wheel : public timer_container<T>
 private:
     static const int N = 60;
     static const int SI = 1;
-    tw_timer *slots[N]{};
+    tw_timer<T> *slots[N]{};
     int cur_slot{};
-
-    
 
 public:
     timer_wheel() = default;
@@ -234,7 +249,7 @@ public:
             head = slots[i];
             while (head)
             {
-                *tmp = head;
+                tmp = head;
                 head = head->next;
                 delete tmp;
             }
@@ -244,7 +259,7 @@ public:
     void add_timer(base_timer<T> *bt) override
     {
         tw_timer<T> *timer = dynamic_cast<tw_timer<T> *>(bt);
-        int ticks = min(1, timer->expire / SI);
+        int ticks = std::min(1, timer->expire / SI);
 
         timer->rotation = ticks / N;
         timer->slot_idx = (cur_slot + ticks) % N;
@@ -270,7 +285,7 @@ public:
         add_timer(bt);
     }
 
-    void del_timer(util_timer<T> *bt) override
+    void del_timer(base_timer<T> *bt) override
     {
         tw_timer<T> *timer = dynamic_cast<tw_timer<T> *>(bt);
         if (!timer)
@@ -297,14 +312,14 @@ public:
     }
     void tick() override
     {
-        tw_timer<T> *cur = slots[timer->slot_idx], *tmp;
+        tw_timer<T> *cur = slots[cur_slot], *tmp;
         while (cur)
         {
             if (--cur->rotation > 0)
                 cur = cur->next;
             else
             {
-                cur->user_data.data.cb_func();
+                cur->user_data->data.cb_func();
                 tmp = cur;
                 if (cur == slots[cur->slot_idx])
                 {
@@ -323,6 +338,11 @@ public:
             }
         }
         cur_slot = (cur_slot + 1) % N;
+    }
+
+    int getTimeSlot() const override
+    {
+        return SI;
     }
 };
 
