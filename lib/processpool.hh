@@ -17,6 +17,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include "lst_timer.hh"
+
 static int setnonblocking(int fd);
 static void addfd(int epollfd, int fd);
 static void removefd(int epollfd, int fd);
@@ -24,6 +26,34 @@ static void sig_handler(int sig);
 static void addsig(int sig, void (*handler)(int), bool restart = true);
 
 static int sig_pipefd[2];
+
+/// @brief 任务类，需要交由进程池处理的任务必须继承自该类，实现相应的方法
+///        任务类需要完成与客户端的通信，因此包含一个socket，以及客户端地址信息
+///        任务类还包括一个epoll描述符，进程管理的所有任务类的socket都通过该描述符监听
+///        这个epoll描述符由进程管理
+class Conn
+{
+protected:
+    int epollfd;
+    int sockfd;
+    sockaddr_in address;
+
+public:
+    void init(int epfd, int sockfd, const sockaddr_in &addr)
+    {
+        epollfd = epfd;
+        this->sockfd = sockfd;
+        address = addr;
+    }
+
+    virtual bool process() const
+    {
+        return true;
+    }
+    virtual void cb_func() const
+    {
+    }
+};
 
 /// @brief 子进程包装类
 class Process
@@ -46,6 +76,7 @@ private:
     static const int max_process_number = 16;
     static const int user_per_process = 65536;
     static const int max_event_number = 10000;
+    static const int timeslot = 5;
     static ProcessPool<T> *instance;
 
     int listenfd;
@@ -54,13 +85,15 @@ private:
     int epollfd;
 
     bool stop{false};
-
+    sort_timer_lst<T> timer_lst{};
     Process *sub_process;
 
     // 构造函数为私有，以支持单例模式
     ProcessPool(int lsfd, int proc_num = 8);
 
     void setup_sig_pipe();
+    void timer_handler();
+
     void run_child();
     void run_parent();
 
@@ -83,7 +116,7 @@ public:
 };
 
 template <typename T>
-ProcessPool<T> * ProcessPool<T>::instance = nullptr;
+ProcessPool<T> *ProcessPool<T>::instance = nullptr;
 
 template <typename T>
 ProcessPool<T>::ProcessPool(int lsfd, int proc_num)
@@ -134,6 +167,14 @@ void ProcessPool<T>::setup_sig_pipe()
     addsig(SIGPIPE, sig_handler);
 }
 
+/// @brief 统一事件源
+template <typename T>
+void ProcessPool<T>::timer_handler()
+{
+    timer_lst.tick();
+    alarm(timeslot);
+}
+
 template <typename T>
 void ProcessPool<T>::run()
 {
@@ -148,19 +189,24 @@ void ProcessPool<T>::run_child()
 {
     setup_sig_pipe();
 
+    // 子进程设置alarm信号
+    addsig(SIGALRM, sig_handler);
+
     // 子进程通过idx找到与父进程通信的管道
     int pipefd = sub_process[idx].pipefd[0];
 
     addfd(epollfd, pipefd);
 
     epoll_event events[max_event_number];
-    T *users = new T[max_process_number];
+    client_data<T> *users = new client_data<T>[max_process_number];
     int signals[1024];
 
     assert(users);
     int number = 0;
     int ret;
+    bool timeout = false;
 
+    alarm(timeslot);
     printf("Child %d wait...\n", idx);
     while (!stop)
     {
@@ -192,7 +238,12 @@ void ProcessPool<T>::run_child()
                     continue;
                 }
                 addfd(epollfd, connfd);
-                users[connfd].init(epollfd, connfd, client);
+                users[connfd].data.init(epollfd, connfd, client);
+
+                // 设置当前连接socket的超时事件
+                util_timer<T> *timer = new util_timer<T>(&users[connfd], time(NULL) + 3 * timeslot);
+                users[connfd].timer = timer;
+                timer_lst.add_timer(timer);
             }
             // 处理信号
             else if (sockfd == sig_pipefd[0])
@@ -205,6 +256,9 @@ void ProcessPool<T>::run_child()
                 {
                     switch (signals[j])
                     {
+                    case SIGALRM:
+                        timeout = true;
+                        break;
                     case SIGCHLD:
                         pid_t pid;
                         int stat;
@@ -222,10 +276,37 @@ void ProcessPool<T>::run_child()
             else if (events[i].events & EPOLLIN)
             {
                 printf("Child %d process...\n", idx);
-                users[events[i].data.fd].process();
+                bool res = users[events[i].data.fd].data.process();
+                util_timer<T> *timer = static_cast<util_timer<T> *> (users[events[i].data.fd].timer);
+                // 处理过程中遇到错误或者对方已经关闭连接
+                if (!res)
+                {
+                    users[events[i].data.fd].data.cb_func();
+                    if (timer)
+                    {
+                        timer_lst.del_timer(timer);
+                    }
+                    printf("user close...\n");
+                }
+                else
+                {
+                    // 更新计时器
+                    if (timer)
+                    {
+                        timer->setExpire(time(NULL) + 3 * timeslot);
+                        printf("Adjust timer\n");
+                        timer_lst.adjust_timer(timer);
+                    }
+                }
             }
             else
                 continue;
+        }
+
+        if (timeout)
+        {
+            timer_handler();
+            timeout = false;
         }
     }
 

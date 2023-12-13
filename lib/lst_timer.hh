@@ -6,41 +6,66 @@
 
 #define BUFFER_SIZE 64
 
-class util_timer;
-class sort_timer_lst;
-
-struct client_data
+template<typename T>
+class base_timer
 {
-    sockaddr_in address;
-    int sockfd;
-    char buf[BUFFER_SIZE];
-    util_timer *timer;
+protected:
+    time_t expire{};
+public:
+    base_timer()=default;
+    base_timer(time_t exp) : expire(exp)
+    {}
+    void setExpire(time_t expire)
+    {
+        this->expire = expire;
+    }
 };
 
-class util_timer
+
+/// @brief 用户数据结构体
+/// @tparam T 一般是一个继承自Conn的任务类
+template<typename T>
+struct client_data
 {
-    friend class sort_timer_lst;
+    T data;                // 具体的用户数据
+    base_timer<T> *timer;  // 计时器指针
+};
+
+// 前置声明sort timer lst
+template<typename T>
+class sort_timer_lst;
+
+/// @brief 用于排序链表的计时器类
+/// @tparam T 
+template<typename T>
+class util_timer : public base_timer<T>
+{
+    friend class sort_timer_lst<T>;
 
 private:
-    client_data *user_data{};
+    client_data<T> *user_data{};
     util_timer *prev{}, *next{};
-    time_t expire{};
 
-    void (*cb_func)(client_data *){nullptr};
 
 public:
     util_timer()=default;
-    util_timer(client_data * data, time_t exp, void (*handler)(client_data *))
-    : user_data(data), expire(exp), cb_func(handler)
+    util_timer(client_data<T> * data, time_t exp)
+    : base_timer<T>(exp), user_data(data)
     {}
+    // void setExpire(time_t expire)
+    // {
+    //     this->expire = expire;
+    // }
 };
 
+
+template<typename T>
 class sort_timer_lst
 {
 private:
-    util_timer *head{}, *tail{};
+    util_timer<T> *head{}, *tail{};
 
-    void add_timer(util_timer *timer, util_timer *lst_head)
+    void add_timer(util_timer<T> *timer, util_timer<T> *lst_head)
     {
         auto cur = lst_head;
         while (cur->next && cur->next->expire < timer->expire)
@@ -73,7 +98,7 @@ public:
         }
     }
 
-    void add_timer(util_timer *timer)
+    void add_timer(util_timer<T> *timer)
     {
         if (!head)
         {
@@ -89,7 +114,7 @@ public:
             add_timer(timer, head);
     }
 
-    void adjust_timer(util_timer *timer)
+    void adjust_timer(util_timer<T> *timer)
     {
         if (!timer)
             return;
@@ -99,7 +124,7 @@ public:
         del_timer(timer);
         add_timer(timer);
     }
-    void del_timer(util_timer *timer)
+    void del_timer(util_timer<T> *timer)
     {
         if (!timer)
             return;
@@ -119,7 +144,7 @@ public:
         time_t cur = time(NULL);
         while (head && head->expire <= cur)
         {
-            head->cb_func(head->user_data);
+            head->user_data->data.cb_func();
             auto tmp = head;
             head = head->next;
             delete tmp;
