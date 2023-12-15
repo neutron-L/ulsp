@@ -3,8 +3,6 @@
 
 #include <time.h>
 
-
-
 // 前置声明定时器基类
 template <typename T>
 class base_timer;
@@ -31,7 +29,7 @@ class base_timer
 {
 protected:
     client_data<T> *user_data{};
-    time_t expire{}; // 定时器期限（过期时间）
+    time_t expire{}; // 定时器超时过期期限
 public:
     base_timer() = default;
     base_timer(client_data<T> *data, time_t exp)
@@ -45,6 +43,12 @@ public:
 
     virtual ~base_timer()
     {
+        struct tm lt1;
+        time_t now = time(NULL);
+        localtime_r(&now, &lt1);
+        struct tm lt2;
+        localtime_r(&expire, &lt2);
+        printf("Trigger time: %s Expire time: %s\n", asctime(&lt1), asctime(&lt2));
     }
 };
 
@@ -60,7 +64,7 @@ public:
     virtual void tick() = 0;
 
     // 定时器类建议使用者调用alarm函数时设置的值
-    virtual int getTimeSlot() const=0;
+    virtual void resetTimer() const = 0;
 };
 
 #endif

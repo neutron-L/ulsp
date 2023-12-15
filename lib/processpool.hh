@@ -18,6 +18,7 @@
 #include <arpa/inet.h>
 
 #include "lst_timer.hh"
+#include "wheel_timer.hh"
 
 static int setnonblocking(int fd);
 static void addfd(int epollfd, int fd);
@@ -172,7 +173,7 @@ template <typename T>
 void ProcessPool<T>::timer_handler()
 {
     timer_lst.tick();
-    alarm(timer_lst.getTimeSlot());
+    // alarm(timer_lst.getTimeSlot());
 }
 
 template <typename T>
@@ -206,7 +207,7 @@ void ProcessPool<T>::run_child()
     int ret;
     bool timeout = false;
 
-    alarm(timer_lst.getTimeSlot());
+    // alarm(timer_lst.getTimeSlot());
 
     printf("Child %d wait...\n", idx);
     while (!stop)

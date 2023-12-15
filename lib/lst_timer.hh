@@ -13,6 +13,10 @@ using std::endl;
 #define BUFFER_SIZE 64
 
 /* 定义基于升序链表的定时器容器 */
+/*
+ * 一般在SIGALRM信号处理函数中调用定时器容器的tick方法
+ * 处理过期的事件
+ * */
 
 // 前置声明sort timer lst
 template <typename T>
@@ -66,6 +70,9 @@ public:
     sort_timer_lst() = default;
     ~sort_timer_lst()
     {
+        // 取消时钟信号
+        alarm(0);
+
         while (head)
         {
             /* code */
@@ -75,27 +82,34 @@ public:
         }
     }
 
+    /// @brief
+    ///       操作链表时被新的SIGALRM中断，链表可能处于不一致状态？
+    ///       Linux默认阻塞当前正在处理的信号
+    /// @param bt
     void add_timer(base_timer<T> *bt) override
     {
-        util_timer<T> * timer = dynamic_cast<util_timer<T> *>(bt);
+        util_timer<T> *timer = dynamic_cast<util_timer<T> *>(bt);
 
         if (!head)
         {
             head = tail = timer;
+            resetTimer();
         }
-        else if (head->expire <= timer->expire)
+        else if (head->expire >= timer->expire)
         {
             timer->next = head;
             head->prev = timer;
             head = timer;
+            resetTimer();
         }
         else
             add_timer(timer, head);
+        printf("add expire: %d\n", timer->expire);
     }
 
     void adjust_timer(base_timer<T> *bt) override
     {
-        util_timer<T> * timer = dynamic_cast<util_timer<T> *>(bt);
+        util_timer<T> *timer = dynamic_cast<util_timer<T> *>(bt);
 
         if (!timer)
             return;
@@ -107,7 +121,7 @@ public:
     }
     void del_timer(base_timer<T> *bt) override
     {
-        util_timer<T> * timer = dynamic_cast<util_timer<T> *>(bt);
+        util_timer<T> *timer = dynamic_cast<util_timer<T> *>(bt);
 
         if (!timer)
             return;
@@ -120,6 +134,7 @@ public:
             head = head->next;
             if (!head)
                 tail = nullptr;
+            resetTimer();
         }
     }
     void tick() override
@@ -127,6 +142,7 @@ public:
         time_t cur = time(NULL);
         while (head && head->expire <= cur)
         {
+            printf("Expire...\n");
             head->user_data->data.cb_func();
             auto tmp = head;
             head = head->next;
@@ -135,13 +151,24 @@ public:
 
         if (head)
             head->prev = nullptr;
+        resetTimer();
     }
 
-    int getTimeSlot() const override
+    // 重置时钟信号为链表头部节点的过期时间间隔
+    void resetTimer() const override
     {
         if (head)
-            return head->expire - time(NULL);
-        return 5;
+        {
+            int tics = head->expire - time(NULL);
+            // 可能当前定时器最早过期的事件已经过期，但不能设置alarm 0
+            //  否则会取消定时器而永远不会触发alarm信号
+            if (tics == 0)
+                ++tics;
+            printf("reset alarm %d\n", tics);
+            alarm(tics);
+        }
+        else
+            alarm(0);
     }
 };
 

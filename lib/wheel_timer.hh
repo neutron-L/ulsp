@@ -152,9 +152,9 @@ public:
         cur_slot = (cur_slot + 1) % N;
     }
 
-    int getTimeSlot() const override
+    void resetTimer() const override
     {
-        return SI;
+        alarm(SI);
     }
 };
 
