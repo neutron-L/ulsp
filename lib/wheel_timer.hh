@@ -47,6 +47,7 @@ private:
     static const int SI = 1;
     tw_timer<T> *slots[N]{};
     int cur_slot{};
+    int count{};
 
 public:
     timer_wheel() = default;
@@ -54,6 +55,8 @@ public:
     {
         tw_timer<T> *head, *tmp;
 
+        // 取消时钟信号
+        alarm(0);
         for (int i = 0; i < N; ++i)
         {
             head = slots[i];
@@ -69,12 +72,19 @@ public:
     void add_timer(base_timer<T> *bt) override
     {
         tw_timer<T> *timer = dynamic_cast<tw_timer<T> *>(bt);
-        int ticks = timer->expire / SI;
+
+        static struct tm lt;
+        localtime_r(&timer->expire, &lt);
+
+        int timeout = timer->expire - time(NULL);
+        int ticks = timeout / SI;
         if (ticks == 0)
             ticks = 1;
 
+
         timer->rotation = ticks / N;
         timer->slot_idx = (cur_slot + ticks) % N;
+        // printf("add expire: %s %d\n", asctime(&lt), timer->slot_idx);
 
         if (!timer)
         {
@@ -89,6 +99,9 @@ public:
             slots[timer->slot_idx]->prev = timer;
             slots[timer->slot_idx] = timer;
         }
+        ++count;
+
+        resetTimer();
     }
 
     void adjust_timer(base_timer<T> *bt) override
@@ -109,7 +122,7 @@ public:
         tw_timer<T> *cur = slots[timer->slot_idx];
 
         while (cur != timer)
-            cur = cur->prev;
+            cur = cur->next;
         if (!cur)
         {
             cerr << "timer does not exist" << endl;
@@ -121,40 +134,65 @@ public:
             slots[timer->slot_idx] = cur->next;
         if (cur->next)
             cur->next->prev = cur->prev;
+        --count;
+        resetTimer();
     }
     void tick() override
     {
+        static struct tm lt1, lt2;
+        static char buf1[32], buf2[32];
+
         tw_timer<T> *cur = slots[cur_slot], *tmp;
+        // printf("slot: %d\n", cur_slot);
         while (cur)
         {
-            if (--cur->rotation > 0)
+            if (cur->rotation > 0)
+            {
+                --cur->rotation;
                 cur = cur->next;
+            }
             else
             {
+                time_t now = time(NULL);
+                localtime_r(&now, &lt1);
+                localtime_r(&cur->expire, &lt2);
+                bzero(buf1, sizeof(buf1));
+                bzero(buf2, sizeof(buf2));
+                printf("Trigger time: %s Expire time: %s\n",
+                       asctime_r(&lt1, buf1), asctime_r(&lt2, buf2));
+
                 cur->user_data->data.cb_func();
                 tmp = cur;
-                if (cur == slots[cur->slot_idx])
+                if (cur == slots[cur_slot])
                 {
                     cur = cur->next;
-                    slots[cur->slot_idx] = cur;
+                    if (cur)
+                        cur->prev = nullptr;
+                    slots[cur_slot] = cur;
                 }
                 else
                 {
                     cur = cur->next;
                     if (cur)
                         cur->prev = tmp->prev;
-                    assert (tmp->prev);
-                    tmp->prev->next=cur;
+                    assert(tmp->prev);
+                    tmp->prev->next = cur;
                 }
+                // cerr << tmp->slot_idx << endl;
                 delete tmp;
+                --count;
             }
         }
         cur_slot = (cur_slot + 1) % N;
+        resetTimer();
     }
 
     void resetTimer() const override
     {
-        alarm(SI);
+        if (count)
+            alarm(SI);
+        else
+            alarm(0);
     }
 };
 

@@ -90,6 +90,10 @@ public:
     {
         util_timer<T> *timer = dynamic_cast<util_timer<T> *>(bt);
 
+        static struct tm lt2;
+        localtime_r(&timer->expire, &lt2);
+        printf("add expire: %s\n", asctime(&lt2));
+
         if (!head)
         {
             head = tail = timer;
@@ -104,7 +108,6 @@ public:
         }
         else
             add_timer(timer, head);
-        printf("add expire: %d\n", timer->expire);
     }
 
     void adjust_timer(base_timer<T> *bt) override
@@ -139,10 +142,20 @@ public:
     }
     void tick() override
     {
+        static struct tm lt1, lt2;
+        static char buf1[32], buf2[32];
+
         time_t cur = time(NULL);
         while (head && head->expire <= cur)
         {
-            printf("Expire...\n");
+            time_t now = time(NULL);
+            localtime_r(&now, &lt1);
+            localtime_r(&head->expire, &lt2);
+            bzero(buf1, sizeof(buf1));
+            bzero(buf2, sizeof(buf2));
+            printf("Trigger time: %s Expire time: %s\n",
+                   asctime_r(&lt1, buf1), asctime_r(&lt2, buf2));
+
             head->user_data->data.cb_func();
             auto tmp = head;
             head = head->next;
@@ -164,7 +177,6 @@ public:
             //  否则会取消定时器而永远不会触发alarm信号
             if (tics == 0)
                 ++tics;
-            printf("reset alarm %d\n", tics);
             alarm(tics);
         }
         else
