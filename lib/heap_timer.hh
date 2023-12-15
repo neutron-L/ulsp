@@ -12,9 +12,9 @@ using std::endl;
 
 #define BUFFER_SIZE 64
 
-/* 定义时间轮 */
+/* 定义时间堆 */
 
-// 前置声明timer wheel
+// 前置声明timer heap
 template <typename T>
 class timer_heap;
 
@@ -24,6 +24,7 @@ template <typename T>
 class hp_timer : public base_timer<T>
 {
     friend class timer_heap<T>;
+
 public:
     hp_timer() = default;
     hp_timer(client_data<T> *data, time_t exp)
@@ -32,102 +33,100 @@ public:
     }
 };
 
+/// @brief 时间堆类
+/// @tparam T
 template <typename T>
-class timer_wheel : public timer_container<T>
+class timer_heap : public timer_container<T>
 {
 private:
-    static const int N = 60;
-    static const int SI = 1;
-    tw_timer<T> *slots[N]{};
-    int cur_slot{};
-    int count{};
+    hp_timer<T> *slots[N]{};
+    int capacity{};
+    int size{};
+
+    void percolate_down(int i)
+    {
+    }
+
+    void percolate_up(int i)
+    {
+    }
+
+    void resize()
+    {
+    }
+
+    int getIdx(hp_timer<T> *const t) const
+    {
+        int idx{};
+        while (idx < size && slots[idx] != timer)
+            ++idx;
+        return idx;
+    }
 
 public:
-    timer_wheel() = default;
-    ~timer_wheel()
+    timer_heap() = default;
+    ~timer_heap()
     {
-        tw_timer<T> *head, *tmp;
-
         // 取消时钟信号
         alarm(0);
-        for (int i = 0; i < N; ++i)
-        {
-            head = slots[i];
-            while (head)
-            {
-                tmp = head;
-                head = head->next;
-                delete tmp;
-            }
-        }
+        for (int i = 0; i < size; ++i)
+            delete slots[i];
+        delete[] slots;
     }
 
     void add_timer(base_timer<T> *bt) override
     {
-        tw_timer<T> *timer = dynamic_cast<tw_timer<T> *>(bt);
-
-        static struct tm lt;
-        localtime_r(&timer->expire, &lt);
-
-        int timeout = timer->expire - time(NULL);
-        int ticks = timeout / SI;
-        if (ticks == 0)
-            ticks = 1;
-
-
-        timer->rotation = ticks / N;
-        timer->slot_idx = (cur_slot + ticks) % N;
-        // printf("add expire: %s %d\n", asctime(&lt), timer->slot_idx);
-
-        if (!timer)
-        {
-            cerr << "timer should be tw_timer class" << endl;
-            return;
-        }
-        if (!slots[timer->slot_idx])
-            slots[timer->slot_idx] = timer;
-        else
-        {
-            timer->next = slots[timer->slot_idx];
-            slots[timer->slot_idx]->prev = timer;
-            slots[timer->slot_idx] = timer;
-        }
-        ++count;
+        if (size == capacity)
+            resize();
+        hp_timer<T> *timer = dynamic_cast<hp_timer<T> *>(bt);
+        slots[size++] = timer;
+        percolate_up(size - 1);
 
         resetTimer();
     }
 
     void adjust_timer(base_timer<T> *bt) override
     {
-        del_timer(bt);
-        add_timer(bt);
+        hp_timer<T> *timer = dynamic_cast<hp_timer<T> *>(bt);
+        if (!timer)
+            return;
+        int idx = getIdx(timer);
+
+        if (idx == size)
+        {
+            cerr << "not found the timer\n";
+            return;
+        }
+
+        int parent = idx / 2;
+        int child = idx * 2;
+        if (slots[idx]->expire < slots[parent]->expire)
+            percolate_up(idx);
+        else
+        {
+            if (child + 1 < size && slots[child + 1]->expire < slots[child]->expire)
+                ++child;
+            if (slots[idx]->expire > slots[child]->expire)
+                percolate_down(idx);
+        }
+        resetTimer();
     }
 
     void del_timer(base_timer<T> *bt) override
     {
-        tw_timer<T> *timer = dynamic_cast<tw_timer<T> *>(bt);
+        hp_timer<T> *timer = dynamic_cast<hp_timer<T> *>(bt);
+
         if (!timer)
-        {
-            cerr << "timer should be tw_timer class" << endl;
             return;
-        }
+        int idx = getIdx(timer);
+        int i = idx;
+        while (i < size)
+            slots[i] = slots[++i];
+        --size;
 
-        tw_timer<T> *cur = slots[timer->slot_idx];
+        for (i = size / 2; i >= 0; --i)
+            percolate_down(i);
 
-        while (cur != timer)
-            cur = cur->next;
-        if (!cur)
-        {
-            cerr << "timer does not exist" << endl;
-            return;
-        }
-        if (cur->prev)
-            cur->prev->next = cur->next;
-        else
-            slots[timer->slot_idx] = cur->next;
-        if (cur->next)
-            cur->next->prev = cur->prev;
-        --count;
         resetTimer();
     }
     void tick() override
@@ -136,55 +135,26 @@ public:
         static char buf1[32], buf2[32];
 
         cur_slot = (cur_slot + 1) % N;
-        tw_timer<T> *cur = slots[cur_slot], *tmp;
+        tw_timer<T> *cur = slots[0];
 
-        // printf("slot: %d\n", cur_slot);
-        while (cur)
-        {
-            if (cur->rotation > 0)
-            {
-                --cur->rotation;
-                cur = cur->next;
-            }
-            else
-            {
-                time_t now = time(NULL);
-                localtime_r(&now, &lt1);
-                localtime_r(&cur->expire, &lt2);
-                bzero(buf1, sizeof(buf1));
-                bzero(buf2, sizeof(buf2));
-                printf("Trigger time: %s Expire time: %s\n",
-                       asctime_r(&lt1, buf1), asctime_r(&lt2, buf2));
+        time_t now = time(NULL);
+        localtime_r(&now, &lt1);
+        localtime_r(&cur->expire, &lt2);
+        bzero(buf1, sizeof(buf1));
+        bzero(buf2, sizeof(buf2));
+        printf("Trigger time: %s Expire time: %s\n",
+               asctime_r(&lt1, buf1), asctime_r(&lt2, buf2));
+        delete cur;
+        slots[0] = slots[--size];
+        percolate_down(0);
 
-                cur->user_data->data.cb_func();
-                tmp = cur;
-                if (cur == slots[cur_slot])
-                {
-                    cur = cur->next;
-                    if (cur)
-                        cur->prev = nullptr;
-                    slots[cur_slot] = cur;
-                }
-                else
-                {
-                    cur = cur->next;
-                    if (cur)
-                        cur->prev = tmp->prev;
-                    assert(tmp->prev);
-                    tmp->prev->next = cur;
-                }
-                // cerr << tmp->slot_idx << endl;
-                delete tmp;
-                --count;
-            }
-        }
         resetTimer();
     }
 
     void resetTimer() const override
     {
-        if (count)
-            alarm(SI);
+        if (size)
+            alarm(slots[0]->exist - time(NULL));
         else
             alarm(0);
     }
