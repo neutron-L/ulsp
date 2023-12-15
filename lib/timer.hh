@@ -27,7 +27,7 @@ struct client_data
 template <typename T>
 class base_timer
 {
-protected:
+public:
     client_data<T> *user_data{};
     time_t expire{}; // 定时器超时过期期限
 public:
@@ -43,12 +43,7 @@ public:
 
     virtual ~base_timer()
     {
-        struct tm lt1;
-        time_t now = time(NULL);
-        localtime_r(&now, &lt1);
-        struct tm lt2;
-        localtime_r(&expire, &lt2);
-        printf("Trigger time: %s Expire time: %s\n", asctime(&lt1), asctime(&lt2));
+       
     }
 };
 

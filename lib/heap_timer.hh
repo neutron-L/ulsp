@@ -1,5 +1,5 @@
-#ifndef WHELL_TIMER_HH
-#define WHELL_TIMER_HH
+#ifndef HEAP_TIMER_HH
+#define HEAP_TIMER_HH
 
 #include <iostream>
 #include <algorithm>
@@ -16,24 +16,17 @@ using std::endl;
 
 // 前置声明timer wheel
 template <typename T>
-class timer_wheel;
+class timer_heap;
 
-/// @brief 用于时间轮的计时器类
+/// @brief 用于时间堆的计时器类
 /// @tparam T
 template <typename T>
-class tw_timer : public base_timer<T>
+class hp_timer : public base_timer<T>
 {
-    friend class timer_wheel<T>;
-
-private:
-    int rotation{};
-    int slot_idx{};
-
-    tw_timer *prev{}, *next{};
-
+    friend class timer_heap<T>;
 public:
-    tw_timer() = default;
-    tw_timer(client_data<T> *data, time_t exp)
+    hp_timer() = default;
+    hp_timer(client_data<T> *data, time_t exp)
         : base_timer<T>(data, exp)
     {
     }
