@@ -142,7 +142,9 @@ public:
         static struct tm lt1, lt2;
         static char buf1[32], buf2[32];
 
+        cur_slot = (cur_slot + 1) % N;
         tw_timer<T> *cur = slots[cur_slot], *tmp;
+
         // printf("slot: %d\n", cur_slot);
         while (cur)
         {
@@ -183,7 +185,6 @@ public:
                 --count;
             }
         }
-        cur_slot = (cur_slot + 1) % N;
         resetTimer();
     }
 
