@@ -1,6 +1,8 @@
 #ifndef TIMER_HH_
 #define TIMER_HH_
 
+#include <stdio.h>
+#include <signal.h>
 #include <time.h>
 
 // 前置声明定时器基类
@@ -52,6 +54,26 @@ public:
 template <typename T>
 class timer_container
 {
+protected:
+    static void block_alarm() 
+    {
+        sigset_t block_set;  
+        sigemptyset(&block_set);  
+        sigaddset(&block_set, SIGALRM);  
+        if (sigprocmask(SIG_BLOCK, &block_set, NULL) == -1) {  
+            perror("sigprocmask");  
+        }  
+    }
+
+    static void unblock_alarm() 
+    {
+        sigset_t block_set;  
+        sigemptyset(&block_set);  
+        sigaddset(&block_set, SIGALRM);  
+        if (sigprocmask(SIG_UNBLOCK, &block_set, NULL) == -1) {  
+            perror("sigprocmask");  
+        }  
+    }
 public:
     virtual void add_timer(base_timer<T> *) = 0;
     virtual void del_timer(base_timer<T> *) = 0;

@@ -39,32 +39,69 @@ template <typename T>
 class timer_heap : public timer_container<T>
 {
 private:
-    hp_timer<T> *slots[N]{};
-    int capacity{};
+    hp_timer<T> **slots{};
+    int capacity{5};
     int size{};
 
     void percolate_down(int i)
     {
+        int child;
+
+        while ((child = i * 2) < size)
+        {
+            if (child + 1 < size && slots[child + 1]->expire < slots[child]->expire)
+                ++child;
+            if (slots[child]->expire < slots[i]->expire)
+            {
+                std::swap(slots[i], slots[child]);
+                i = child;
+            }
+            else
+                break;
+        }
     }
 
     void percolate_up(int i)
     {
+        int parent;
+
+        while (i > 0)
+        {
+            parent = i / 2;
+            if (slots[i]->expire < slots[parent]->expire)
+            {
+                std::swap(slots[i], slots[parent]);
+                i = parent;
+            }
+            else
+                break;
+        }
     }
 
     void resize()
     {
+        capacity *= 2;
+        hp_timer<T> **new_slots = new hp_timer<T> *[capacity] {};
+        for (int i = 0; i < size; ++i)
+            new_slots[i] = slots[i];
+        delete[] slots;
+        slots = new_slots;
     }
 
     int getIdx(hp_timer<T> *const t) const
     {
         int idx{};
-        while (idx < size && slots[idx] != timer)
+        while (idx < size && slots[idx] != t)
             ++idx;
+
         return idx;
     }
 
 public:
-    timer_heap() = default;
+    timer_heap()
+    {
+        slots = new hp_timer<T> *[capacity] {};
+    }
     ~timer_heap()
     {
         // 取消时钟信号
@@ -76,13 +113,20 @@ public:
 
     void add_timer(base_timer<T> *bt) override
     {
+        block_alarm();
         if (size == capacity)
             resize();
         hp_timer<T> *timer = dynamic_cast<hp_timer<T> *>(bt);
+        if (!timer)
+        {
+            cerr << "timer is not hp_timer]\n";
+            return;
+        }
         slots[size++] = timer;
         percolate_up(size - 1);
 
         resetTimer();
+        unblock_alarm();
     }
 
     void adjust_timer(base_timer<T> *bt) override
@@ -106,7 +150,7 @@ public:
         {
             if (child + 1 < size && slots[child + 1]->expire < slots[child]->expire)
                 ++child;
-            if (slots[idx]->expire > slots[child]->expire)
+            if (child < size && slots[idx]->expire > slots[child]->expire)
                 percolate_down(idx);
         }
         resetTimer();
@@ -115,38 +159,60 @@ public:
     void del_timer(base_timer<T> *bt) override
     {
         hp_timer<T> *timer = dynamic_cast<hp_timer<T> *>(bt);
-
-        if (!timer)
+        if (!timer || !size)
             return;
+        block_alarm();
         int idx = getIdx(timer);
-        int i = idx;
-        while (i < size)
-            slots[i] = slots[++i];
-        --size;
+        cerr << idx << endl;
 
-        for (i = size / 2; i >= 0; --i)
-            percolate_down(i);
+        if (idx == size)
+        {
+            cerr << "not found the timer\n";
+            return;
+        }
+        slots[idx] = slots[--size];
+        slots[size] = nullptr;
+        if (slots[idx])
+        {
+            if (slots[idx]->expire < timer->expire)
+                percolate_up(idx);
+            else
+                percolate_down(idx);
+        }
 
         resetTimer();
+        unblock_alarm();
+        cerr << "Delete " << timer->expire << endl ;
+
     }
     void tick() override
     {
         static struct tm lt1, lt2;
         static char buf1[32], buf2[32];
 
-        cur_slot = (cur_slot + 1) % N;
-        tw_timer<T> *cur = slots[0];
-
+        if (!size)
+            return;
         time_t now = time(NULL);
-        localtime_r(&now, &lt1);
-        localtime_r(&cur->expire, &lt2);
-        bzero(buf1, sizeof(buf1));
-        bzero(buf2, sizeof(buf2));
-        printf("Trigger time: %s Expire time: %s\n",
-               asctime_r(&lt1, buf1), asctime_r(&lt2, buf2));
-        delete cur;
-        slots[0] = slots[--size];
-        percolate_down(0);
+        hp_timer<T> *cur;
+        while (size && (cur = slots[0])->expire <= now)
+        {
+            localtime_r(&now, &lt1);
+            localtime_r(&cur->expire, &lt2);
+            bzero(buf1, sizeof(buf1));
+            bzero(buf2, sizeof(buf2));
+            printf("Trigger time: %s Expire time: %s\n",
+                   asctime_r(&lt1, buf1), asctime_r(&lt2, buf2));
+            cur->user_data->data.cb_func();
+            delete cur;
+            if (size == 1)
+            {
+                --size;
+                break;
+            }
+            slots[0] = slots[--size];
+            slots[size] = nullptr;
+            percolate_down(0);
+        }
 
         resetTimer();
     }
@@ -154,7 +220,14 @@ public:
     void resetTimer() const override
     {
         if (size)
-            alarm(slots[0]->exist - time(NULL));
+        {
+            int tics = slots[0]->expire - time(NULL);
+            // 可能当前定时器最早过期的事件已经过期，但不能设置alarm 0
+            //  否则会取消定时器而永远不会触发alarm信号
+            if (tics == 0)
+                ++tics;
+            alarm(tics);
+        }
         else
             alarm(0);
     }

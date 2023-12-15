@@ -19,6 +19,7 @@
 
 #include "lst_timer.hh"
 #include "wheel_timer.hh"
+#include "heap_timer.hh"
 
 static int setnonblocking(int fd);
 static void addfd(int epollfd, int fd);
