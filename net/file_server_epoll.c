@@ -22,15 +22,14 @@
 #include <arpa/inet.h>
 
 #define MAX_EVENT_NUMBER 1024
-#define SERVER_PORT 8080
+#define SERVER_PORT 8088
 #define BUFSIZE 512
 
 char buf[BUFSIZE];
 
 struct sockaddr_in client_addr;
 socklen_t addrlen = sizeof(client_addr);
-            struct stat file_stat;
-
+struct stat file_stat;
 
 int setnonblocking(int fd)
 {
@@ -104,10 +103,16 @@ int main()
     address.sin_port = htons(SERVER_PORT);
 
     listenfd = socket(PF_INET, SOCK_STREAM, 0);
+    assert(listenfd >= 0);
+    if (bind(listenfd, (struct sockaddr *)&address, sizeof(address)) != 0)
+    {
+        perror("bind");
+        close(listenfd);
+        return 0;
+    }
     int reuse = 1;
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-    assert(listenfd >= 0);
-    assert(bind(listenfd, (struct sockaddr *)&address, sizeof(address)) == 0);
+
     assert(listen(listenfd, 5) != -1);
 
     struct epoll_event events[MAX_EVENT_NUMBER];

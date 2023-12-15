@@ -22,7 +22,7 @@
 #include <arpa/inet.h>
 
 #define MAX_EVENT_NUMBER 1024
-#define SERVER_PORT 8080
+#define SERVER_PORT 8088
 #define BUFSIZE 512
 
 char buf[BUFSIZE];
@@ -65,7 +65,7 @@ void lt(struct epoll_event *events, int number, int connfd)
         {
             bzero(buf, sizeof(buf));
             int n = recv(connfd, buf, BUFSIZE - 1, 0);
-            printf("%s", n, buf);
+            printf("%s", buf);
         }
         else
         {
@@ -115,7 +115,12 @@ void et(struct epoll_event *events, int number, int connfd)
             assert(sockfd == STDIN_FILENO);
             bzero(buf, sizeof(buf));
             scanf("%s", buf);
-            send(connfd, buf, strlen(buf), 0);
+            if (send(connfd, buf, strlen(buf), 0) <= 0)
+            {
+                perror("send");
+                fprintf(stderr, "send %s\n", buf);
+                close(sockfd);
+            }
         }
     }
 }
@@ -130,7 +135,12 @@ int main()
     server_address.sin_port = htons(SERVER_PORT);
 
     connfd = socket(PF_INET, SOCK_STREAM, 0);
-    assert(connect(connfd, (struct sockaddr *)&server_address, sizeof(server_address)) == 0);
+    if (connect(connfd, (struct sockaddr *)&server_address, sizeof(server_address)) != 0)
+    {
+        perror("connect");
+        close(connfd);
+        return 0;
+    }
 
     struct epoll_event events[MAX_EVENT_NUMBER];
     epollfd = epoll_create(5);
