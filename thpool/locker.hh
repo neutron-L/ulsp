@@ -11,16 +11,16 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
-class Sem
+class Semaphore
 {
 private:
     sem_t sem;
 
 public:
-    Sem() : Sem(0)
+    Semaphore() : Semaphore(0)
     {
     }
-    Sem(unsigned int val)
+    Semaphore(unsigned int val)
     {
         if (sem_init(&sem, 0, val) != 0)
         {
@@ -29,7 +29,7 @@ public:
         }
     }
 
-    ~Sem()
+    ~Semaphore()
     {
         sem_destroy(&sem);
     }
