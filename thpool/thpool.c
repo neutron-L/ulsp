@@ -65,9 +65,94 @@ static void *thread_do(thread_t *);
 static void thread_pause(int sig);
 static void thread_destroy(thread_t *);
 
-static int jobqueue_init(jobqueue_t *);
+static jobqueue_t* jobqueue_init();
 static void jobqueue_clear(jobqueue_t *);
 static void jobqueue_push(jobqueue_t *);
 static job_t * jobqueue_pop(jobqueue_t *);
 static void jobqueue_destroy(jobqueue_t *);
 
+/* =============================== THREADPOOL ============================== */
+
+thpool_t * thpool_init(int nb_threads)
+{
+    thpool_t * thpool = (thpool_t *)malloc(sizeof(thpool_t));
+    int i;
+
+    if (!thpool)
+    {
+        perror("malloc");
+        goto fail_alloc_thpool;
+    }
+
+    /* 初始化统计数据 */
+    thpool->thread_num = nb_threads;
+    thpool->thread_alive = 0;
+    thpool->thread_working = 0;
+    thpool->running = 1;
+
+    /* 初始化同步数据 */
+    if (pthread_mutex_init(&thpool->count_locker, NULL))
+    {
+        perror("pthread_mutex_init");
+        goto fail_init_locker;
+    }
+    
+    if (pthread_cond_init(&thpool->all_idle, NULL))
+    {
+        perror("pthread_cond_init");
+        goto fail_init_cond;
+    }
+
+    /* 创建并初始化线程 */
+    thpool->threads = (thread_t *)malloc(nb_threads * sizeof(thread_t));
+    if (!thpool->threads)
+    {
+        perror("malloc");
+        goto fail_alloc_threads;
+    }
+    thpool->thread_num = nb_threads;
+    for (i = 0; i < nb_threads; ++i)
+    {
+        if (thread_init(thpool, i))
+        {
+            perror("thread_init");
+            goto fail_init_thread;
+        }
+    }
+
+    /* 初始化任务队列 */
+    thpool->jobs = jobqueue_init();
+    if (!thpool->jobs)
+        goto fail_init_thread;
+    
+    while (thpool->thread_alive < thpool->thread_num)
+    {}
+
+    return thpool;
+
+
+fail_init_thread:
+    while (i >= 0)
+    {
+        thread_destroy(thpool->threads[i]);
+        --i;
+    }
+
+fail_alloc_threads:
+    free(thpool->threads);
+    pthread_cond_destroy(&thpool->all_idle);
+fail_init_cond:
+    pthread_cond_destroy(&thpool->count_locker);
+fail_init_locker:
+    free(thpool);
+fail_alloc_thpool:
+    return NULL;
+}
+
+void thpool_add_job(thpool_t *, void (*func)(void *), void *arg);
+
+void thpool_wait(thpool_t *);
+void thpool_pause(thpool_t *);
+void thpool_resume(thpool_t *);
+void thpool_destroy(thpool_t *);
+int thpool_num_threads_working(thpool_t *);
