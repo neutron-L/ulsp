@@ -54,11 +54,12 @@ struct ThreadPool
     /* 线程池使用的同步数据成员 */
     pthread_mutex_t count_locker; // 线程修改thread_alive/thread_working/thread_stop的互斥锁
     pthread_cond_t all_idle;      // thread_working为0的条件变量，需要与count_locker配合使用
+    sem_t has_job;                // 信号量，表示工作队列中是否有任务待处理
 };
 
 /* ========================== Static Functions ============================ */
 static int thread_init(thpool_t *, int id);
-static void *thread_do(thread_t *);
+static void *thread_do(void *);
 static void thread_pause(int sig);
 static void thread_destroy(thread_t *);
 
@@ -100,6 +101,12 @@ thpool_t *thpool_init(int nb_threads)
         goto fail_init_cond;
     }
 
+    if (sem_init(&thpool->has_job, 0))
+    {
+        perror("sem_init");
+        goto fail_init_sem;
+    }
+
     /* 创建并初始化线程 */
     thpool->threads = (thread_t *)malloc(nb_threads * sizeof(thread_t));
     if (!thpool->threads)
@@ -137,7 +144,9 @@ fail_init_thread:
 
 fail_alloc_threads:
     free(thpool->threads);
+fail_init_sem:
     pthread_cond_destroy(&thpool->all_idle);
+
 fail_init_cond:
     pthread_cond_destroy(&thpool->count_locker);
 fail_init_locker:
@@ -173,9 +182,77 @@ void thpool_resume(thpool_t *thpool)
 }
 void thpool_destroy(thpool_t *thpool)
 {
-
 }
 int thpool_num_threads_working(thpool_t *thpool)
 {
     return thpool->thread_working;
+}
+
+/* ===================== Helper function implementation ======================== */
+static int thread_init(thpool_t *thpool, int id)
+{
+    thread_t *self = thpool->threads[id];
+    self->id = id;
+    self->thpool = thpool;
+
+    if (pthread_create(&self->tid, NULL, thread_do, (void *)self))
+        return -1;
+    return 0;
+}
+
+static void *thread_do(void *arg)
+{
+    thread_t *self = (thread_t *)arg;
+    thpool_t *thpool = self->thpool;
+
+    // 递增alive线程数量
+    pthread_mutex_lock(&thpool->count_locker);
+    ++thpool->thread_alive;
+    pthread_mutex_unlock(&thpool->count_locker);
+
+    while (thpool->running)
+    {
+        // 等待任务
+        sem_wait(&thpool->has_job);
+
+        // 检查线程池是否仍在运行
+        if (thpool->running)
+        {
+            // 递增工作线程数量
+            pthread_mutex_lock(&thpool->count_locker);
+            ++thpool->thread_working;
+            pthread_mutex_unlock(&thpool->count_locker);
+
+            // working
+            job_t *job = jobqueue_pop(thpool->jobs);
+            assert(job);
+            assert(job->fun);
+            job->fun(job->arg);
+
+            // 递减工作线程数量
+            pthread_mutex_lock(&thpool->count_locker);
+            --thpool->thread_working;
+            pthread_mutex_unlock(&thpool->count_locker);
+        }
+        else // 唤醒其他阻塞在等待任务处理的线程，可以理解为wait是“取出”一个任务（其实是任务对应的信号量），这里将任务“放回”
+            sem_post(&thpool->has_job);
+    }
+
+    // 递减alive线程数量
+    pthread_mutex_lock(&thpool->count_locker);
+    --thpool->thread_alive;
+    pthread_mutex_unlock(&thpool->count_locker);
+    return NULL;
+}
+
+static void thread_pause(int sig)
+{
+    (void )sig;
+    while (pause)
+    {}
+}
+
+static void thread_destroy(thread_t * thread)
+{
+    free(thread);
 }
