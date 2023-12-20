@@ -101,7 +101,7 @@ thpool_t *thpool_init(int nb_threads)
         goto fail_init_cond;
     }
 
-    if (sem_init(&thpool->has_job, 0))
+    if (sem_init(&thpool->has_job, 0, 0))
     {
         perror("sem_init");
         goto fail_init_sem;
@@ -247,12 +247,76 @@ static void *thread_do(void *arg)
 
 static void thread_pause(int sig)
 {
-    (void )sig;
+    (void)sig;
     while (pause)
-    {}
+    {
+    }
 }
 
-static void thread_destroy(thread_t * thread)
+static void thread_destroy(thread_t *thread)
 {
     free(thread);
+}
+
+static jobqueue_t *jobqueue_init()
+{
+    jobqueue_t *jobqueue = (jobqueue_t *)malloc(sizeof(jobqueue_t));
+    if (!jobqueue || pthread_mutex_init(&jobqueue->lock, NULL))
+        return NULL;
+    jobqueue->head = jobqueue->tail = NULL;
+    jobqueue->len = 0;
+
+    return jobqueue;
+}
+
+static void jobqueue_clear(jobqueue_t *jobqueue)
+{
+    pthread_mutex_lock(&jobqueue->lock);
+    while (jobqueue->head)
+    {
+        job_t *job = jobqueue->head;
+        free(job);
+        jobqueue->head = jobqueue->head->next;
+        --jobqueue->len;
+    }
+    jobqueue->head = jobqueue->tail = NULL;
+    pthread_mutex_unlock(&jobqueue->lock);
+}
+static void jobqueue_push(jobqueue_t *jobqueue, job_t *job)
+{
+    pthread_mutex_lock(&jobqueue->lock);
+    if (jobqueue->tail)
+
+        jobqueue->tail->next = job;
+    else
+        jobqueue->head = job;
+    jobqueue->tail = job;
+    ++jobqueue->len;
+    pthread_mutex_unlock(&jobqueue->lock);
+}
+
+static job_t *jobqueue_pop(jobqueue_t *jobqueue)
+{
+    job_t *job;
+    pthread_mutex_lock(&jobqueue->lock);
+    if (!jobqueue->len)
+        job = NULL;
+    else
+    {
+        job = jobqueue->head;
+        jobqueue->head = job->next;
+        if (!jobqueue->head)
+            jobqueue->tail = NULL;
+        --jobqueue->len;
+    }
+    pthread_mutex_unlock(&jobqueue->lock);
+
+    return NULL;
+}
+
+static void jobqueue_destroy(jobqueue_t *jobqueue)
+{
+    jobqueue_clear(jobqueue);
+    pthread_mutex_destroy(&jobqueue->lock);
+    free(jobqueue);
 }
