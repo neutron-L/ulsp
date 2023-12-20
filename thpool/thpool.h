@@ -46,6 +46,97 @@ void thpool_add_job(thpool_t *, void (*func)(void *), void *arg);
 
 
 
+/// @brief 等待当前正在执行的以及排队的任务全部执行完毕
+/// @example
+///
+///     int main()
+///     {
+///         ...
+///         thpool_t * thpool = thpool_init(5);
+///         // 添加若干任务
+///         thpool_wait(thpool);
+///         // 任务全部执行完毕
+///         ...
+///     }
+/// @param  thpool_t *  线程池指针
+void thpool_wait(thpool_t *);
+
+
+
+
+/// @brief 立即暂停所有线程
+///        所有线程，无论是处于执行状态还是空闲状态
+/// @example
+///
+///     int main()
+///     {
+///         ...
+///         thpool_t * thpool = thpool_init(5);
+///         // 添加若干任务
+///         ...
+///         // 暂停线程池
+///         thpool_pause(thpool);
+///         ...
+///     }
+/// @param  thpool_t *  线程池指针
+void thpool_pause(thpool_t *);
+
+
+
+/// @brief 恢复所有线程（解除暂停状态）
+///        用来撤销thpool_pause(thpool_t *)的影响
+/// @example
+///
+///     int main()
+///     {
+///         ...
+///         thpool_t * thpool = thpool_init(5);
+///         // 添加若干任务
+///         ...
+///         // 暂停线程池
+///         thpool_pause(thpool);
+///         ...
+///         // 恢复执行
+///         thpool_resume(thpool);
+///     }
+/// @param  thpool_t *  线程池指针
+void thpool_resume(thpool_t *);
+
+
+
+/// @brief 销毁线程池
+///        会等待正在执行任务的线程完成任务，然后杀死所有线程，
+///        最后销毁线程池所有资源，包括线程池指针指向的内存本身
+///        排队的任务会被销毁
+/// @example
+///
+///     int main()
+///     {
+///         ...
+///         thpool_t * thpool = thpool_init(5);
+///         // 添加若干任务
+///         ...
+///         // 销毁线程池
+///         thpool_destroy(thpool);
+///     }
+/// @param  thpool_t *  线程池指针
+void thpool_destroy(thpool_t *);
+
+
+/// @brief 返回线程池中执行任务的线程数量
+/// @example
+///
+///     int main()
+///     {
+///         ...
+///         thpool_t * thpool = thpool_init(5);
+///         ...
+///         printf("Working threads: %d\n", thpool_num_threads_working(thpool1));
+///     }
+/// @param  thpool_t *  线程池指针
+/// @return integer     工作中线程数量
+int thpool_num_threads_working(thpool_t *);
+
 
 #ifdef __cplusplus
 }
