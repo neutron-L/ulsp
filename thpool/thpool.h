@@ -42,7 +42,7 @@ thpool_t * thpool_init(int nb_threads);
 /// @param thpool_t *   线程池指针 
 /// @param func         待添加的任务函数指针
 /// @param arg          任务函数需要的参数
-void thpool_add_job(thpool_t *, void (*func)(void *), void *arg);
+void thpool_add_job(thpool_t *, void* (*func)(void *), void *arg);
 
 
 

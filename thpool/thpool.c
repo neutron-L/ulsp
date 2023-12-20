@@ -1,7 +1,9 @@
-
-
+#include <stdio.h>
+#include <assert.h>
+#include <stdlib.h>
 #include <errno.h>
 #include <pthread.h>
+#include <unistd.h>
 #include <semaphore.h>
 #include <signal.h>
 #include "thpool.h"
@@ -11,7 +13,7 @@
 // 前置声明
 typedef struct ThreadPool thpool_t;
 
-static volatile int pause;
+static volatile int stop;
 
 /* ============================= Structures =============================== */
 
@@ -28,7 +30,7 @@ typedef struct Job
 {
     void *(*fun)(void *); // 执行任务的函数
     void *arg;            // 函数所需要的参数
-    job_t *next;
+    struct Job *next;
 } job_t;
 
 typedef struct
@@ -108,7 +110,7 @@ thpool_t *thpool_init(int nb_threads)
     }
 
     /* 创建并初始化线程 */
-    thpool->threads = (thread_t *)malloc(nb_threads * sizeof(thread_t));
+    thpool->threads = (thread_t **)malloc(nb_threads * sizeof(thread_t *));
     if (!thpool->threads)
     {
         perror("malloc");
@@ -148,40 +150,68 @@ fail_init_sem:
     pthread_cond_destroy(&thpool->all_idle);
 
 fail_init_cond:
-    pthread_cond_destroy(&thpool->count_locker);
+    pthread_mutex_destroy(&thpool->count_locker);
 fail_init_locker:
     free(thpool);
 fail_alloc_thpool:
     return NULL;
 }
 
-void thpool_add_job(thpool_t *thpool, void (*func)(void *), void *arg)
+void thpool_add_job(thpool_t *thpool, void* (*fun)(void *), void *arg)
 {
     job_t *job = (job_t *)malloc(sizeof(job_t));
+    job->fun = fun;
+    job->arg = arg;
+    job->next = NULL;
     jobqueue_push(thpool->jobs, job);
+    sem_post(&thpool->has_job);
 }
 
 void thpool_wait(thpool_t *thpool)
 {
     pthread_mutex_lock(&thpool->count_locker);
     while (thpool->jobs->len || thpool->thread_working)
+    {
         pthread_cond_wait(&thpool->all_idle, &thpool->count_locker);
+    }
     pthread_mutex_unlock(&thpool->count_locker);
 }
 
 void thpool_pause(thpool_t *thpool)
 {
-    pause = 1;
+    stop = 1;
     for (int i = 0; i < thpool->thread_num; ++i)
-        pthread_kill(thpool->threads[i], SIG_STOP_EXECUTE);
+        pthread_kill(thpool->threads[i]->tid, SIG_STOP_EXECUTE);
 }
 
 void thpool_resume(thpool_t *thpool)
 {
-    pause = 0;
+    stop = 0;
 }
 void thpool_destroy(thpool_t *thpool)
 {
+    thpool->running = 0;
+
+    while (thpool->thread_alive)
+    {
+        sem_post(&thpool->has_job);
+        sleep(1);
+    }
+
+    jobqueue_destroy(thpool->jobs);
+
+    for (int i = 0; i < thpool->thread_num; ++i)
+        thread_destroy(thpool->threads[i]);
+    // 销毁同步数据
+    pthread_mutex_destroy(&thpool->count_locker);
+    pthread_cond_destroy(&thpool->all_idle);
+    sem_destroy(&thpool->has_job);
+
+    free(thpool->threads);
+    free(thpool);
+    #ifdef DEBUG
+    printf("Destroy thread pool\n");
+    #endif
 }
 int thpool_num_threads_working(thpool_t *thpool)
 {
@@ -191,12 +221,14 @@ int thpool_num_threads_working(thpool_t *thpool)
 /* ===================== Helper function implementation ======================== */
 static int thread_init(thpool_t *thpool, int id)
 {
+    thpool->threads[id] = (thread_t *)malloc(sizeof(thread_t));
     thread_t *self = thpool->threads[id];
     self->id = id;
     self->thpool = thpool;
 
     if (pthread_create(&self->tid, NULL, thread_do, (void *)self))
         return -1;
+    pthread_detach(self->tid);
     return 0;
 }
 
@@ -204,6 +236,18 @@ static void *thread_do(void *arg)
 {
     thread_t *self = (thread_t *)arg;
     thpool_t *thpool = self->thpool;
+
+    // 设置信号处理函数
+    struct sigaction sa;
+    bzero(&sa, sizeof(sa));
+    sa.sa_handler = thread_pause;
+    sigfillset(&sa.sa_mask);
+    if (sigaction(SIG_STOP_EXECUTE, &sa, NULL))
+    {
+        perror("sigaction");
+        return NULL;
+    }
+
 
     // 递增alive线程数量
     pthread_mutex_lock(&thpool->count_locker);
@@ -225,13 +269,22 @@ static void *thread_do(void *arg)
 
             // working
             job_t *job = jobqueue_pop(thpool->jobs);
-            assert(job);
-            assert(job->fun);
-            job->fun(job->arg);
+            if (job) // 可能为空，thpool_destroy函数为了唤醒线程可能释放虚假的has_job信号量
+            {
+                
+#ifdef DEBUG
+        printf("%d got task\n", self->id);
+#endif
+                job->fun(job->arg);
+                free(job);
+            }
 
             // 递减工作线程数量
             pthread_mutex_lock(&thpool->count_locker);
-            --thpool->thread_working;
+            // 当前所有线程均空闲
+            if (--thpool->thread_working == 0)
+                pthread_cond_signal(&thpool->all_idle);
+
             pthread_mutex_unlock(&thpool->count_locker);
         }
         else // 唤醒其他阻塞在等待任务处理的线程，可以理解为wait是“取出”一个任务（其实是任务对应的信号量），这里将任务“放回”
@@ -248,13 +301,14 @@ static void *thread_do(void *arg)
 static void thread_pause(int sig)
 {
     (void)sig;
-    while (pause)
+    while (stop)
     {
     }
 }
 
 static void thread_destroy(thread_t *thread)
 {
+    // pthread_join(thread->tid, NULL);
     free(thread);
 }
 
@@ -286,7 +340,6 @@ static void jobqueue_push(jobqueue_t *jobqueue, job_t *job)
 {
     pthread_mutex_lock(&jobqueue->lock);
     if (jobqueue->tail)
-
         jobqueue->tail->next = job;
     else
         jobqueue->head = job;
@@ -311,7 +364,7 @@ static job_t *jobqueue_pop(jobqueue_t *jobqueue)
     }
     pthread_mutex_unlock(&jobqueue->lock);
 
-    return NULL;
+    return job;
 }
 
 static void jobqueue_destroy(jobqueue_t *jobqueue)
