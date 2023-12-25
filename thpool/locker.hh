@@ -1,5 +1,5 @@
-#ifndef THREADPOOL_HH_
-#define THREADPOOL_HH_
+#ifndef LOCKER_HH_
+#define LOCKER_HH_
 
 #include <iostream>
 #include <exception>
@@ -11,6 +11,8 @@ using std::cerr;
 using std::cout;
 using std::endl;
 
+
+/// @brief 信号量包装类
 class Semaphore
 {
 private:
@@ -45,6 +47,8 @@ public:
     }
 };
 
+
+/// @brief 互斥锁包装类
 class Locker
 {
 private:
@@ -76,6 +80,8 @@ public:
     }
 };
 
+
+/// @brief 条件变量包装类
 class Condition
 {
 private:

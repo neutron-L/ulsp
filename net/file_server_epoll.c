@@ -57,6 +57,8 @@ void lt(struct epoll_event *events, int number, int epollfd, int listenfd)
         int sockfd = events[i].data.fd;
         if (sockfd == listenfd)
         {
+            sleep(10);
+            printf("Now accept\n");
             int connfd = accept(listenfd, (struct sockaddr *)&client_addr, &addrlen);
             if (connfd < 0)
                 continue;
@@ -111,7 +113,7 @@ int main()
         return 0;
     }
     int reuse = 1;
-    setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+    assert(!setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)));
 
     assert(listen(listenfd, 5) != -1);
 
