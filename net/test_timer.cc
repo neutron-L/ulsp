@@ -58,17 +58,17 @@ int main()
 
     while (n)
     {
-        if (n % 2) // 主动移除下标为奇数的定时器
-        {
-            localtime_r(&timers[max_process_number - n]->expire, &lt);
-            timer.del_timer(timers[max_process_number - n]);
-            --n;
-        }
+        // if (n % 2) // 主动移除下标为奇数的定时器
+        // {
+        //     localtime_r(&timers[max_process_number - n]->expire, &lt);
+        //     timer.del_timer(timers[max_process_number - n]);
+        //     --n;
+        // }
         continue;
     }
 
-    for (int i = 1; i < max_process_number; i+=2)
-        delete timers[i];
+    // for (int i = 1; i < max_process_number; i+=2)
+        // delete timers[i];
 
     delete[] users;
     delete[] timers;
